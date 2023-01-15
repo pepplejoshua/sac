@@ -8,6 +8,7 @@ pub struct Span {
     pub end_col: i32,
 }
 
+#[allow(dead_code)]
 impl Span {
     pub fn new_dud() -> Span {
         Span {
@@ -113,8 +114,14 @@ pub enum AST {
         name: String,
         value: Box<AST>,
     },
+    WhileLoop {
+        span: Span,
+        condition: Box<AST>,
+        body: Box<AST>,
+    },
 }
 
+#[allow(dead_code)]
 impl AST {
     pub fn equals(&self, other: &AST) -> bool {
         match (self, other) {
@@ -290,6 +297,18 @@ impl AST {
                     value: ovalue,
                 },
             ) => name == oname && value.equals(ovalue),
+            (
+                AST::WhileLoop {
+                    span: _,
+                    condition,
+                    body,
+                },
+                AST::WhileLoop {
+                    span: _,
+                    condition: ocondition,
+                    body: obody,
+                },
+            ) => condition.equals(ocondition) && body.equals(obody),
             _ => false,
         }
     }
@@ -340,6 +359,11 @@ impl AST {
                 span,
                 name: _,
                 value: _,
+            } => span.clone(),
+            AST::WhileLoop {
+                span,
+                condition: _,
+                body: _,
             } => span.clone(),
         }
     }
