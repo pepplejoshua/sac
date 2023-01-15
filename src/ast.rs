@@ -97,6 +97,12 @@ pub enum AST {
         then: Box<AST>,
         c_else: Box<AST>,
     },
+    FunctionDef {
+        span: Span,
+        name: String,
+        params: Vec<String>,
+        body: Box<AST>,
+    },
 }
 
 impl AST {
@@ -228,6 +234,28 @@ impl AST {
                     c_else: oc_else,
                 },
             ) => condition.equals(ocondition) && then.equals(othen) && c_else.equals(oc_else),
+            (
+                AST::FunctionDef {
+                    span: _,
+                    name,
+                    params,
+                    body,
+                },
+                AST::FunctionDef {
+                    span: _,
+                    name: oname,
+                    params: oparams,
+                    body: obody,
+                },
+            ) => {
+                name == oname
+                    && params.len() == oparams.len()
+                    && params
+                        .iter()
+                        .zip(oparams.iter())
+                        .all(|(param, oparam)| param == oparam)
+                    && body.equals(obody)
+            }
             _ => false,
         }
     }
@@ -262,6 +290,12 @@ impl AST {
                 condition: _,
                 then: _,
                 c_else: _,
+            } => span.clone(),
+            AST::FunctionDef {
+                span,
+                name: _,
+                params: _,
+                body: _,
             } => span.clone(),
         }
     }
