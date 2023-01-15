@@ -91,6 +91,12 @@ pub enum AST {
         statements: Vec<AST>,
         span: Span,
     },
+    IfCond {
+        span: Span,
+        condition: Box<AST>,
+        then: Box<AST>,
+        c_else: Box<AST>,
+    },
 }
 
 impl AST {
@@ -208,6 +214,20 @@ impl AST {
                         .zip(ostatements.iter())
                         .all(|(stmt, ostmt)| stmt.equals(ostmt))
             }
+            (
+                AST::IfCond {
+                    span: _,
+                    condition,
+                    then,
+                    c_else,
+                },
+                AST::IfCond {
+                    span: _,
+                    condition: ocondition,
+                    then: othen,
+                    c_else: oc_else,
+                },
+            ) => condition.equals(ocondition) && then.equals(othen) && c_else.equals(oc_else),
             _ => false,
         }
     }
@@ -236,6 +256,12 @@ impl AST {
             AST::Block {
                 statements: _,
                 span,
+            } => span.clone(),
+            AST::IfCond {
+                span,
+                condition: _,
+                then: _,
+                c_else: _,
             } => span.clone(),
         }
     }
