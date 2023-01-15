@@ -58,6 +58,22 @@ fn main() {
 
     let k = AST::Grouped {
         inner: Box::new(j.clone()),
+        span: moded_span.clone(),
+    };
+
+    if let AST::Grouped { inner, span: _ } = k {
+        assert!(inner.equals(&j));
+    }
+
+    let l = AST::Call {
+        called: "add".into(),
+        args: vec![a.clone(), b.clone(), c.clone(), e.clone()],
+        span: moded_span.clone(),
+    };
+
+    let m = AST::Call {
+        called: "add".into(),
+        args: vec![a.clone(), b.clone(), c.clone(), e.clone()],
         span: moded_span,
     };
 
@@ -67,10 +83,7 @@ fn main() {
     assert!(c.equals(&c));
     assert!(f.equals(&g));
     assert!(j.equals(&j));
-
-    if let AST::Grouped { inner, span: _ } = k {
-        assert!(inner.equals(&j));
-    }
+    assert!(l.equals(&m));
 
     println!("{:#?}", j);
     println!("{:#?}\n{:#?}", h.get_span(), i.get_span());

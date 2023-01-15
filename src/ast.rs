@@ -38,16 +38,51 @@ impl Span {
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum AST {
-    Number { num: i64, span: Span },
-    Identifier { name: String, span: Span },
-    Not { target: Box<AST>, span: Span },
-    Equals { lhs: Box<AST>, rhs: Box<AST> },
-    NEquals { lhs: Box<AST>, rhs: Box<AST> },
-    Add { lhs: Box<AST>, rhs: Box<AST> },
-    Subtract { lhs: Box<AST>, rhs: Box<AST> },
-    Multiply { lhs: Box<AST>, rhs: Box<AST> },
-    Divide { lhs: Box<AST>, rhs: Box<AST> },
-    Grouped { inner: Box<AST>, span: Span },
+    Number {
+        num: i64,
+        span: Span,
+    },
+    Identifier {
+        name: String,
+        span: Span,
+    },
+    Not {
+        target: Box<AST>,
+        span: Span,
+    },
+    Equals {
+        lhs: Box<AST>,
+        rhs: Box<AST>,
+    },
+    NEquals {
+        lhs: Box<AST>,
+        rhs: Box<AST>,
+    },
+    Add {
+        lhs: Box<AST>,
+        rhs: Box<AST>,
+    },
+    Subtract {
+        lhs: Box<AST>,
+        rhs: Box<AST>,
+    },
+    Multiply {
+        lhs: Box<AST>,
+        rhs: Box<AST>,
+    },
+    Divide {
+        lhs: Box<AST>,
+        rhs: Box<AST>,
+    },
+    Grouped {
+        inner: Box<AST>,
+        span: Span,
+    },
+    Call {
+        called: String,
+        args: Vec<AST>,
+        span: Span,
+    },
 }
 
 impl AST {
@@ -123,6 +158,24 @@ impl AST {
                     span: _,
                 },
             ) => inner.equals(oinner),
+            (
+                AST::Call {
+                    called,
+                    args,
+                    span: _,
+                },
+                AST::Call {
+                    called: ocalled,
+                    args: oargs,
+                    span: _,
+                },
+            ) => {
+                called == ocalled
+                    && args
+                        .iter()
+                        .zip(oargs.iter())
+                        .all(|(arg, oarg)| arg.equals(oarg))
+            }
             _ => false,
         }
     }
@@ -142,6 +195,11 @@ impl AST {
             AST::Multiply { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
             AST::Divide { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
             AST::Grouped { inner: _, span } => span.clone(),
+            AST::Call {
+                called: _,
+                args: _,
+                span,
+            } => span.clone(),
         }
     }
 }
