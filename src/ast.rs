@@ -108,6 +108,11 @@ pub enum AST {
         name: String,
         value: Box<AST>,
     },
+    Assignment {
+        span: Span,
+        name: String,
+        value: Box<AST>,
+    },
 }
 
 impl AST {
@@ -273,6 +278,18 @@ impl AST {
                     value: ovalue,
                 },
             ) => name == oname && value.equals(ovalue),
+            (
+                AST::Assignment {
+                    span: _,
+                    name,
+                    value,
+                },
+                AST::Assignment {
+                    span: _,
+                    name: oname,
+                    value: ovalue,
+                },
+            ) => name == oname && value.equals(ovalue),
             _ => false,
         }
     }
@@ -315,6 +332,11 @@ impl AST {
                 body: _,
             } => span.clone(),
             AST::Variable {
+                span,
+                name: _,
+                value: _,
+            } => span.clone(),
+            AST::Assignment {
                 span,
                 name: _,
                 value: _,
