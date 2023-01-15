@@ -51,11 +51,18 @@ fn main() {
         rhs: Box::new(e.clone()),
     };
 
+    let j = AST::Add {
+        lhs: Box::new(i.clone()),
+        rhs: Box::new(g.clone()),
+    };
+
     assert!(!a.equals(&b));
     assert!(a.equals(&d));
     assert!(!c.equals(&e));
     assert!(c.equals(&c));
     assert!(f.equals(&g));
+    assert!(j.equals(&j));
 
+    println!("{:#?}", j);
     println!("{:#?}\n{:#?}", h.get_span(), i.get_span());
 }

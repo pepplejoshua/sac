@@ -1,5 +1,4 @@
 use std::cmp;
-
 #[derive(Debug, Clone)]
 pub struct Span {
     pub file: String,
@@ -36,6 +35,7 @@ impl Span {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum AST {
     Number { num: i64, span: Span },
@@ -43,6 +43,10 @@ pub enum AST {
     Not { target: Box<AST>, span: Span },
     Equals { lhs: Box<AST>, rhs: Box<AST> },
     NEquals { lhs: Box<AST>, rhs: Box<AST> },
+    Add { lhs: Box<AST>, rhs: Box<AST> },
+    Subtract { lhs: Box<AST>, rhs: Box<AST> },
+    Multiply { lhs: Box<AST>, rhs: Box<AST> },
+    Divide { lhs: Box<AST>, rhs: Box<AST> },
 }
 
 impl AST {
@@ -83,6 +87,34 @@ impl AST {
                     rhs: orhs,
                 },
             ) => lhs.equals(olhs) && rhs.equals(orhs),
+            (
+                AST::Add { lhs, rhs },
+                AST::Add {
+                    lhs: olhs,
+                    rhs: orhs,
+                },
+            ) => lhs.equals(olhs) && rhs.equals(orhs),
+            (
+                AST::Subtract { lhs, rhs },
+                AST::Subtract {
+                    lhs: olhs,
+                    rhs: orhs,
+                },
+            ) => lhs.equals(olhs) && rhs.equals(orhs),
+            (
+                AST::Multiply { lhs, rhs },
+                AST::Multiply {
+                    lhs: olhs,
+                    rhs: orhs,
+                },
+            ) => lhs.equals(olhs) && rhs.equals(orhs),
+            (
+                AST::Divide { lhs, rhs },
+                AST::Divide {
+                    lhs: olhs,
+                    rhs: orhs,
+                },
+            ) => lhs.equals(olhs) && rhs.equals(orhs),
             _ => false,
         }
     }
@@ -97,6 +129,10 @@ impl AST {
             } => span.clone(),
             AST::Equals { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
             AST::NEquals { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
+            AST::Add { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
+            AST::Subtract { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
+            AST::Multiply { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
+            AST::Divide { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
         }
     }
 }
