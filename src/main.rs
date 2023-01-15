@@ -16,7 +16,7 @@ fn main() {
 
     let b = AST::Number {
         num: 4,
-        span: moded_span,
+        span: moded_span.clone(),
     };
 
     let c = AST::Identifier {
@@ -56,12 +56,21 @@ fn main() {
         rhs: Box::new(g.clone()),
     };
 
+    let k = AST::Grouped {
+        inner: Box::new(j.clone()),
+        span: moded_span,
+    };
+
     assert!(!a.equals(&b));
     assert!(a.equals(&d));
     assert!(!c.equals(&e));
     assert!(c.equals(&c));
     assert!(f.equals(&g));
     assert!(j.equals(&j));
+
+    if let AST::Grouped { inner, span: _ } = k {
+        assert!(inner.equals(&j));
+    }
 
     println!("{:#?}", j);
     println!("{:#?}\n{:#?}", h.get_span(), i.get_span());

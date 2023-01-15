@@ -47,6 +47,7 @@ pub enum AST {
     Subtract { lhs: Box<AST>, rhs: Box<AST> },
     Multiply { lhs: Box<AST>, rhs: Box<AST> },
     Divide { lhs: Box<AST>, rhs: Box<AST> },
+    Grouped { inner: Box<AST>, span: Span },
 }
 
 impl AST {
@@ -115,6 +116,13 @@ impl AST {
                     rhs: orhs,
                 },
             ) => lhs.equals(olhs) && rhs.equals(orhs),
+            (
+                AST::Grouped { inner, span: _ },
+                AST::Grouped {
+                    inner: oinner,
+                    span: _,
+                },
+            ) => inner.equals(oinner),
             _ => false,
         }
     }
@@ -133,6 +141,7 @@ impl AST {
             AST::Subtract { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
             AST::Multiply { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
             AST::Divide { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
+            AST::Grouped { inner: _, span } => span.clone(),
         }
     }
 }
