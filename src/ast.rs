@@ -87,6 +87,10 @@ pub enum AST {
         value: Box<AST>,
         span: Span,
     },
+    Block {
+        statements: Vec<AST>,
+        span: Span,
+    },
 }
 
 impl AST {
@@ -175,6 +179,7 @@ impl AST {
                 },
             ) => {
                 called == ocalled
+                    && args.len() == oargs.len()
                     && args
                         .iter()
                         .zip(oargs.iter())
@@ -187,6 +192,22 @@ impl AST {
                     span: _,
                 },
             ) => value.equals(ovalue),
+            (
+                AST::Block {
+                    statements,
+                    span: _,
+                },
+                AST::Block {
+                    statements: ostatements,
+                    span: _,
+                },
+            ) => {
+                statements.len() == ostatements.len()
+                    && statements
+                        .iter()
+                        .zip(ostatements.iter())
+                        .all(|(stmt, ostmt)| stmt.equals(ostmt))
+            }
             _ => false,
         }
     }
@@ -212,6 +233,10 @@ impl AST {
                 span,
             } => span.clone(),
             AST::Return { value, span } => span.clone().merge_with(&value.get_span()),
+            AST::Block {
+                statements: _,
+                span,
+            } => span.clone(),
         }
     }
 }
