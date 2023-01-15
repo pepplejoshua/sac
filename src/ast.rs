@@ -103,6 +103,11 @@ pub enum AST {
         params: Vec<String>,
         body: Box<AST>,
     },
+    Variable {
+        span: Span,
+        name: String,
+        value: Box<AST>,
+    },
 }
 
 impl AST {
@@ -256,6 +261,18 @@ impl AST {
                         .all(|(param, oparam)| param == oparam)
                     && body.equals(obody)
             }
+            (
+                AST::Variable {
+                    span: _,
+                    name,
+                    value,
+                },
+                AST::Variable {
+                    span: _,
+                    name: oname,
+                    value: ovalue,
+                },
+            ) => name == oname && value.equals(ovalue),
             _ => false,
         }
     }
@@ -296,6 +313,11 @@ impl AST {
                 name: _,
                 params: _,
                 body: _,
+            } => span.clone(),
+            AST::Variable {
+                span,
+                name: _,
+                value: _,
             } => span.clone(),
         }
     }
