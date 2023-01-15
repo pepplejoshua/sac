@@ -11,6 +11,7 @@ pub struct Span {
 pub enum AST {
     Number { num: i64, span: Span },
     Identifier { name: String, span: Span },
+    Not { target: Box<AST>, span: Span },
 }
 
 impl AST {
@@ -30,6 +31,13 @@ impl AST {
                     span: _,
                 },
             ) => name == oname,
+            (
+                AST::Not { target, span: _ },
+                AST::Not {
+                    target: otarget,
+                    span: _,
+                },
+            ) => target.equals(otarget),
             _ => false,
         }
     }
@@ -38,6 +46,10 @@ impl AST {
         match self {
             AST::Number { num: _, ref span } => span.clone(),
             AST::Identifier { name: _, ref span } => span.clone(),
+            AST::Not {
+                target: _,
+                ref span,
+            } => span.clone(),
         }
     }
 }

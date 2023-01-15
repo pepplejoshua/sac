@@ -49,10 +49,34 @@ fn main() {
         },
     };
 
+    let f = AST::Not {
+        target: Box::new(b.clone()),
+        span: Span {
+            file: "garb.txt".into(),
+            line: 1,
+            col: 1,
+            flat_index_start: 1,
+            length: 1,
+        },
+    };
+
+    let g = AST::Not {
+        target: Box::new(b.clone()),
+        span: Span {
+            file: "garb.txt".into(),
+            line: 1,
+            col: 1,
+            flat_index_start: 1,
+            length: 1,
+        },
+    };
+
     assert!(!a.equals(&b));
     assert!(a.equals(&d));
     assert!(!c.equals(&e));
     assert!(c.equals(&c));
+
+    assert!(f.equals(&g));
 
     println!("{:#?}", a.get_span());
 }
