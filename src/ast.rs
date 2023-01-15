@@ -83,6 +83,10 @@ pub enum AST {
         args: Vec<AST>,
         span: Span,
     },
+    Return {
+        value: Box<AST>,
+        span: Span,
+    },
 }
 
 impl AST {
@@ -176,6 +180,13 @@ impl AST {
                         .zip(oargs.iter())
                         .all(|(arg, oarg)| arg.equals(oarg))
             }
+            (
+                AST::Return { value, span: _ },
+                AST::Return {
+                    value: ovalue,
+                    span: _,
+                },
+            ) => value.equals(ovalue),
             _ => false,
         }
     }
@@ -200,6 +211,7 @@ impl AST {
                 args: _,
                 span,
             } => span.clone(),
+            AST::Return { value, span } => span.clone().merge_with(&value.get_span()),
         }
     }
 }
