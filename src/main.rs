@@ -1,2 +1,3 @@
-mod ast;
+pub mod frontend;
+
 fn main() {}
