@@ -2,7 +2,7 @@ pub mod frontend;
 
 use frontend::{parser::regexp, source::Source};
 
-use crate::frontend::parser::zero_or_more;
+use crate::frontend::parser::{constant, zero_or_more};
 
 fn main() {
     let mut src = Source {
@@ -28,4 +28,18 @@ fn main() {
     let some_letters_or_digits = zero_or_more(letter_or_digit);
     let res = some_letters_or_digits.parse(&mut dud);
     println!("some letters or digits: {:?}.\n", res);
+
+    let mut dud = Source::dud();
+    dud.content = "12,34".into();
+    let pair = regexp("[0-9]+").bind(Box::new(|first| {
+        regexp(",").bind(Box::new(move |_| {
+            let f = first.clone();
+            regexp("[0-9]+").bind(Box::new(move |second| {
+                let results = vec![f.clone(), second.clone()];
+                constant(results)
+            }))
+        }))
+    }));
+    let res = pair.parse(&mut dud);
+    println!("binding: {:?}.\n", res);
 }

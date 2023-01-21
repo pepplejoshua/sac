@@ -87,6 +87,19 @@ impl<T: Clone + 'static> Parser<T> {
         }))
     }
 
+    pub fn bind<'a, U: Clone + 'static>(
+        self,
+        callback: Box<dyn Fn(T) -> Parser<U> + 'static>,
+    ) -> Parser<U> {
+        Parser::n(Box::new(move |src| -> ParseResult<U> {
+            let res = self.parse(src);
+            match res {
+                ParseResult::Some(v, _) => callback(v).parse(src),
+                ParseResult::None => ParseResult::None,
+            }
+        }))
+    }
+
     pub fn parse(&self, src: &mut Source) -> ParseResult<T> {
         (self.p)(src)
     }
@@ -98,4 +111,8 @@ pub fn regexp(reg: &'static str) -> Parser<String> {
 
 pub fn zero_or_more<U: Clone + 'static>(parser: Parser<U>) -> Parser<Vec<U>> {
     Parser::<U>::zero_or_more(parser)
+}
+
+pub fn constant<U: Clone + 'static>(value: U) -> Parser<U> {
+    Parser::<U>::constant(value)
 }
