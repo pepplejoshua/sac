@@ -4,7 +4,6 @@ use super::source::Source;
 
 #[derive(Debug, Clone)]
 pub enum ParseResult<T: Clone + 'static> {
-    Multiple(Vec<T>, Source),
     Some(T, Source),
     None,
 }
@@ -17,7 +16,7 @@ pub struct Parser<T: Clone + 'static> {
     pub p: Box<dyn Fn(&mut Source) -> ParseResult<T>>,
 }
 
-impl<T: Clone> Parser<T> {
+impl<T: Clone + 'static> Parser<T> {
     pub fn n(parser: Box<dyn Fn(&mut Source) -> ParseResult<T>>) -> Parser<T> {
         Parser { p: parser }
     }
@@ -44,52 +43,59 @@ impl<T: Clone> Parser<T> {
             match res {
                 ParseResult::Some(_, _) => res,
                 ParseResult::None => rhs.parse(src),
-                ParseResult::Multiple(_, _) => res,
             }
         }))
     }
 
-    pub fn and(self, rhs: Parser<T>) -> Parser<T> {
-        Parser::n(Box::new(move |src| -> ParseResult<T> {
+    pub fn and(self, rhs: Parser<T>) -> Parser<Vec<T>> {
+        Parser::n(Box::new(move |src| -> ParseResult<Vec<T>> {
             let res = self.parse(src);
             let mut results: Vec<T> = vec![];
             match res {
                 ParseResult::Some(v, _) => {
                     results.push(v);
-                    let mut res_r = rhs.parse(src);
+                    let res_r = rhs.parse(src);
                     match res_r {
-                        ParseResult::Multiple(ref mut vs, src) => {
-                            results.append(vs);
-                            ParseResult::Multiple(results, src.clone())
-                        }
                         ParseResult::Some(v, src) => {
                             results.push(v);
-                            ParseResult::Multiple(results, src.clone())
+                            ParseResult::Some(results, src.clone())
                         }
-                        ParseResult::None => res_r,
+                        ParseResult::None => ParseResult::None,
                     }
                 }
-                ParseResult::None => return res,
-                ParseResult::Multiple(vs, _) => {
-                    results = vs;
-                    let mut res_r = rhs.parse(src);
-                    match res_r {
-                        ParseResult::Multiple(ref mut vs, src) => {
-                            results.append(vs);
-                            ParseResult::Multiple(results, src.clone())
-                        }
-                        ParseResult::Some(v, src) => {
-                            results.push(v);
-                            ParseResult::Multiple(results, src.clone())
-                        }
-                        ParseResult::None => res_r,
+                ParseResult::None => ParseResult::None,
+            }
+        }))
+    }
+
+    pub fn zero_or_more<U: Clone + 'static>(parser: Parser<U>) -> Parser<Vec<U>> {
+        Parser::n(Box::new(move |src| -> ParseResult<Vec<U>> {
+            let mut results: Vec<U> = vec![];
+            let mut item;
+            'outer: loop {
+                item = parser.parse(src);
+                match item {
+                    ParseResult::Some(v, _) => {
+                        results.push(v);
+                    }
+                    ParseResult::None => {
+                        break 'outer;
                     }
                 }
             }
+            ParseResult::Some(results, src.clone())
         }))
     }
 
     pub fn parse(&self, src: &mut Source) -> ParseResult<T> {
         (self.p)(src)
     }
+}
+
+pub fn regexp(reg: &'static str) -> Parser<String> {
+    Parser::<String>::regexp(reg)
+}
+
+pub fn zero_or_more<U: Clone + 'static>(parser: Parser<U>) -> Parser<Vec<U>> {
+    Parser::<U>::zero_or_more(parser)
 }
