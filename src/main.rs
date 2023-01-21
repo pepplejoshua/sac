@@ -1,16 +1,12 @@
 pub mod frontend;
 
 use frontend::{
-    parser::{Parser, RegExp},
+    parser::{ParseResult, Parser},
     source::Source,
 };
 
 fn main() {
-    let r = RegExp {
-        regex: regex::Regex::new(r"hello\d{1}").unwrap(),
-    };
-
-    let src = Source {
+    let mut src = Source {
         path: "dud.txt".to_string(),
         content: "hello1 world2".to_string(),
         index: 0,
@@ -19,10 +15,10 @@ fn main() {
         col_no: 0,
     };
 
-    match r.parse(src) {
-        frontend::parser::ParseResult::Some(text, sc) => {
-            println!("new index: {:}, text: {text}", sc.index);
-        }
-        frontend::parser::ParseResult::None => println!("Not a match"),
+    let re = Parser::<String>::regexp(r"hello\d{1}");
+
+    match re.parse(&mut src) {
+        ParseResult::Some(val, _) => println!("matched {val}."),
+        ParseResult::None => println!("No match"),
     }
 }

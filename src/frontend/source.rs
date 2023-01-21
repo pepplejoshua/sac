@@ -2,6 +2,7 @@ use super::parser::ParseResult;
 use regex::Regex;
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct Source {
     pub path: String,
     pub content: String,
@@ -12,7 +13,18 @@ pub struct Source {
 }
 
 impl Source {
-    pub fn match_reg(mut self, exp: &Regex) -> ParseResult<String> {
+    pub fn dud() -> Source {
+        Source {
+            path: "dud.txt".into(),
+            content: "".into(),
+            index: 0,
+            lines: vec![],
+            line_no: 0,
+            col_no: 0,
+        }
+    }
+
+    pub fn match_reg(&mut self, exp: Regex) -> ParseResult<String> {
         let mat = exp.find_at(&self.content, self.index);
         match mat {
             Some(val) => {
@@ -25,7 +37,7 @@ impl Source {
                         .get(val.start()..val.end())
                         .unwrap()
                         .to_string();
-                    return ParseResult::Some(matched, self);
+                    return ParseResult::Some(matched, self.clone());
                 }
             }
             None => ParseResult::None,

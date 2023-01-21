@@ -1,42 +1,28 @@
-use super::source::Source;
 use regex::Regex;
 
-pub enum ParseResult<T> {
+use super::source::Source;
+
+pub enum ParseResult<T: Clone> {
     Some(T, Source),
     None,
 }
 
-pub trait Parser<T> {
-    fn parse(&self, src: Source) -> ParseResult<T>;
+pub struct Parser<T: Clone> {
+    pub p: Box<dyn Fn(&mut Source) -> ParseResult<T>>,
 }
 
-pub struct RegExp {
-    pub regex: Regex,
-}
-
-impl Parser<String> for RegExp {
-    fn parse(&self, src: Source) -> ParseResult<String> {
-        src.match_reg(&self.regex)
+impl<T: Clone> Parser<T> {
+    pub fn n(parser: Box<dyn Fn(&mut Source) -> ParseResult<T>>) -> Parser<T> {
+        Parser { p: parser }
     }
-}
 
-pub struct Constant<T: Clone> {
-    value: T,
-}
-
-impl<T: Clone> Parser<T> for Constant<T> {
-    fn parse(&self, src: Source) -> ParseResult<T> {
-        ParseResult::Some(self.value.clone(), src)
+    pub fn regexp(regexp: &'static str) -> Parser<String> {
+        Parser::n(Box::new(|src| -> ParseResult<String> {
+            src.match_reg(Regex::new(regexp).unwrap())
+        }))
     }
-}
 
-// improve this to take a text span and report on it
-pub struct Error {
-    message: String,
-}
-
-impl Parser<()> for Error {
-    fn parse(&self, src: Source) -> ParseResult<()> {
-        panic!("{:} => {:}", src.index, self.message);
+    pub fn parse(&self, src: &mut Source) -> ParseResult<T> {
+        (self.p)(src)
     }
 }
