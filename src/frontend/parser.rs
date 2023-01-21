@@ -36,6 +36,10 @@ impl<T: Clone + 'static> Parser<T> {
         }))
     }
 
+    pub fn none<U: Clone + 'static>() -> Parser<U> {
+        Parser::n(Rc::new(|_| -> ParseResult<U> { ParseResult::None }))
+    }
+
     pub fn error(msg: String) {
         panic!("{msg}");
     }
@@ -112,6 +116,10 @@ impl<T: Clone + 'static> Parser<T> {
         self.bind(Rc::new(move |value| constant(callback(value))))
     }
 
+    pub fn maybe<U: Clone + 'static>(parser: Parser<U>) -> Parser<U> {
+        parser.or(none())
+    }
+
     pub fn parse(&self, src: &mut Source) -> ParseResult<T> {
         (self.p)(src)
     }
@@ -127,4 +135,12 @@ pub fn zero_or_more<U: Clone + 'static>(parser: Parser<U>) -> Parser<Vec<U>> {
 
 pub fn constant<U: Clone + 'static>(value: U) -> Parser<U> {
     Parser::<U>::constant(value)
+}
+
+pub fn none<U: Clone + 'static>() -> Parser<U> {
+    Parser::<U>::none()
+}
+
+pub fn maybe<U: Clone + 'static>(parser: Parser<U>) -> Parser<U> {
+    Parser::<U>::maybe(parser)
 }

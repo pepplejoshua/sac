@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use frontend::{parser::regexp, source::Source};
 
-use crate::frontend::parser::{constant, zero_or_more};
+use crate::frontend::parser::{constant, maybe, zero_or_more};
 
 fn main() {
     let mut src = Source {
@@ -55,4 +55,13 @@ fn main() {
     }));
     let res = pair.parse(&mut dud);
     println!("binding: {:?}.\n", res);
+
+    let mut dud = Source::dud();
+    dud.content = "!a1".into();
+    let letter = regexp(r"[a-zA-Z]{1}");
+    let digit = regexp(r"\d{1}");
+    let letter_or_digit = letter.or(digit);
+    let maybe_letters_or_digits = maybe(letter_or_digit);
+    let res = maybe_letters_or_digits.parse(&mut dud);
+    println!("may letters or digits: {:?}.\n", res);
 }
