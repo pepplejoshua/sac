@@ -7,7 +7,7 @@ pub enum ParseResult<T> {
 }
 
 pub trait Parser<T> {
-    fn parse(self, src: Source) -> ParseResult<T>;
+    fn parse(&self, src: Source) -> ParseResult<T>;
 }
 
 pub struct RegExp {
@@ -15,7 +15,28 @@ pub struct RegExp {
 }
 
 impl Parser<String> for RegExp {
-    fn parse(self, src: Source) -> ParseResult<String> {
-        src.match_reg(self.regex)
+    fn parse(&self, src: Source) -> ParseResult<String> {
+        src.match_reg(&self.regex)
+    }
+}
+
+pub struct Constant<T: Clone> {
+    value: T,
+}
+
+impl<T: Clone> Parser<T> for Constant<T> {
+    fn parse(&self, src: Source) -> ParseResult<T> {
+        ParseResult::Some(self.value.clone(), src)
+    }
+}
+
+// improve this to take a text span and report on it
+pub struct Error {
+    message: String,
+}
+
+impl Parser<()> for Error {
+    fn parse(&self, src: Source) -> ParseResult<()> {
+        panic!("{:} => {:}", src.index, self.message);
     }
 }

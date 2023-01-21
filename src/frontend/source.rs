@@ -12,7 +12,7 @@ pub struct Source {
 }
 
 impl Source {
-    pub fn match_reg(mut self, exp: Regex) -> ParseResult<String> {
+    pub fn match_reg(mut self, exp: &Regex) -> ParseResult<String> {
         let mat = exp.find_at(&self.content, self.index);
         match mat {
             Some(val) => {
