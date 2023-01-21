@@ -24,6 +24,17 @@ impl Source {
         }
     }
 
+    pub fn from(content: String) -> Source {
+        Source {
+            path: "dud.txt".into(),
+            content,
+            index: 0,
+            lines: vec![],
+            line_no: 0,
+            col_no: 0,
+        }
+    }
+
     pub fn match_reg(&mut self, exp: Regex) -> ParseResult<String> {
         let mat = exp.find_at(&self.content, self.index);
         match mat {

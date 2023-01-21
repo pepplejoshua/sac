@@ -64,4 +64,23 @@ fn main() {
     let maybe_letters_or_digits = maybe(letter_or_digit);
     let res = maybe_letters_or_digits.parse(&mut dud);
     println!("may letters or digits: {:?}.\n", res);
+
+    let mut src = Source::from(
+        r"
+
+
+// this is a comment
+//this is another comment
+/*
+
+    multiline comment
+    ****  
+*/"
+        .into(),
+    );
+    let whitespace = regexp(r"[ \n\r\t]+");
+    let comments = regexp(r"[/][/].*").or(regexp(r"(?s)[/][*].*[*][/]"));
+    let ignored = zero_or_more(whitespace.or(comments));
+    let res = ignored.parse(&mut src);
+    println!("ignored: {:?}.\n", res);
 }
