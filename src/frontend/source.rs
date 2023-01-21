@@ -2,7 +2,7 @@ use super::parser::ParseResult;
 use regex::Regex;
 
 #[allow(dead_code)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Source {
     pub path: String,
     pub content: String,

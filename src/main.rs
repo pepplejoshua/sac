@@ -1,24 +1,20 @@
 pub mod frontend;
 
-use frontend::{
-    parser::{ParseResult, Parser},
-    source::Source,
-};
+use frontend::{parser::Parser, source::Source};
 
 fn main() {
     let mut src = Source {
         path: "dud.txt".to_string(),
-        content: "hello1 world2".to_string(),
+        content: "abc1234".to_string(),
         index: 0,
         lines: vec![],
         line_no: 0,
         col_no: 0,
     };
 
-    let re = Parser::<String>::regexp(r"hello\d{1}");
-
-    match re.parse(&mut src) {
-        ParseResult::Some(val, _) => println!("matched {val}."),
-        ParseResult::None => println!("No match"),
-    }
+    let letter = Parser::<String>::regexp(r"[a-zA-Z]{3}");
+    let digit = Parser::<String>::regexp(r"\d{4}");
+    let letter_and_dig = letter.and(digit);
+    let res = letter_and_dig.parse(&mut src);
+    println!("{:?}", res);
 }
