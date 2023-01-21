@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use closure::closure;
 use regex::Regex;
 
 use super::source::Source;
@@ -105,9 +104,7 @@ impl<T: Clone + 'static> Parser<T> {
     }
 
     pub fn and_drop_left<U: Clone + 'static>(self, rhs: Parser<U>) -> Parser<U> {
-        self.bind(Rc::new(
-            closure!(move rhs, |_: T| -> Parser<U> { rhs.clone() }),
-        ))
+        self.bind(Rc::new(move |_: T| -> Parser<U> { rhs.clone() }))
         // return self.bind(Box::new(move |_| rhs));
     }
 
