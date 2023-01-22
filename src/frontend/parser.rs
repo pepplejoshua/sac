@@ -395,5 +395,41 @@ pub fn parse() {
             })))
     })));
 
-    
+    let block_statement = LEFT_BRACE.clone()
+        .and_drop_left(zero_or_more(statement.clone())
+        .bind(Rc::new(closure!(clone RIGHT_BRACE, |stmts: Vec<AST>| -> Parser<AST> {
+            RIGHT_BRACE.clone().and_drop_left(constant(AST::Block { 
+                statements: stmts, 
+                span: Span::new_dud() }))
+        }))));
+
+    let parameters = ID
+        .clone()
+        .bind(Rc::new(closure!(clone ID, clone COMMA, |arg| {
+            zero_or_more(COMMA.clone().and_drop_left(ID.clone()))
+                .bind(Rc::new(move |args| {
+                    constant([vec![arg.clone()], args].concat())
+                }))
+                .or(constant(vec![]))
+        })));
+
+    let function_def = FN.clone().and_drop_left(ID.clone())
+        .bind(Rc::new(closure!(clone LEFT_PAREN, clone RIGHT_PAREN, clone block_statement, clone parameters,
+            |fn_name: String| -> Parser<AST> {
+                LEFT_PAREN.clone().and_drop_left(parameters.clone())
+                .bind(Rc::new(closure!(clone RIGHT_PAREN, clone block_statement, clone fn_name,
+                    |params: Vec<String>| -> Parser<AST> {
+                        RIGHT_PAREN.clone().and_drop_left(block_statement.clone())
+                        .bind(Rc::new(closure!(clone params, clone fn_name, |block: AST| -> Parser<AST> {
+                            constant(AST::FunctionDef { 
+                                span: Span::new_dud(), 
+                                name: fn_name.clone(), 
+                                params: params.clone(), 
+                                body: Box::new(block), 
+                            })
+                        })))
+                    }
+                )))
+            }
+        )));
 }
