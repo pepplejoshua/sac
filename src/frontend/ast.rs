@@ -39,10 +39,6 @@ pub enum AST {
         lhs: Box<AST>,
         rhs: Box<AST>,
     },
-    Grouped {
-        inner: Box<AST>,
-        span: Span,
-    },
     Call {
         called: String,
         args: Vec<AST>,
@@ -152,13 +148,6 @@ impl AST {
                     rhs: orhs,
                 },
             ) => lhs.equals(olhs) && rhs.equals(orhs),
-            (
-                AST::Grouped { inner, span: _ },
-                AST::Grouped {
-                    inner: oinner,
-                    span: _,
-                },
-            ) => inner.equals(oinner),
             (
                 AST::Call {
                     called,
@@ -291,7 +280,6 @@ impl AST {
             AST::Subtract { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
             AST::Multiply { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
             AST::Divide { lhs, rhs } => lhs.get_span().merge_with(&rhs.get_span()),
-            AST::Grouped { inner: _, span } => span.clone(),
             AST::Call {
                 called: _,
                 args: _,

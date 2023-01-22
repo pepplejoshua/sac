@@ -210,7 +210,7 @@ pub fn parse() {
     let STAR = make_token_parser(r"[*]");
     let SLASH = make_token_parser(r"[/]");
 
-    let expression = Parser::<AST>::error("expression parser used before definition".into());
+    let mut expression = Parser::<AST>::error("expression parser used before definition".into());
 
     let args = expression
         .clone()
@@ -319,4 +319,35 @@ pub fn parse() {
     let product = make_infix_grammar(STAR.clone().or(SLASH.clone()), unary.clone());
     let sum = make_infix_grammar(PLUS.clone().or(MINUS.clone()), product.clone());
     let comparison = make_infix_grammar(EQUAL.clone().or(N_EQUALS.clone()), sum.clone());
+
+    expression.p = comparison.p;
+
+    // statements
+    let statement = Parser::<AST>::error("statement parser used before definition".into());
+
+    let return_statement = RETURN
+        .clone()
+        .and_drop_left(expression.clone())
+        .bind(Rc::new(closure!(clone SEMI_COLON, |term| {
+            SEMI_COLON.clone().and_drop_left(constant(AST::Return {
+                value: Box::new(term.clone()),
+                span: Span::new_dud(),
+            }))
+        })));
+
+    let expression_statement = expression.clone().bind(Rc::new(
+        closure!(clone SEMI_COLON, |term: AST| -> Parser<AST> {
+            SEMI_COLON.clone().and_drop_left(constant(term.clone()))
+        }),
+    ));
+
+    let if_statement = IF.clone().and_drop_left(expression.clone()).bind(Rc::new(
+        closure!(clone ELSE, clone statement, |conditional: AST| -> Parser<AST> {
+            statement.clone().bind(Rc::new(closure!(clone ELSE, clone statement, clone conditional, |conseq: AST| -> Parser<AST> {
+                ELSE.clone().and_drop_left(statement.clone()).bind(Rc::new(closure!(clone conditional, clone conseq, |alternative: AST| -> Parser<AST> {
+                    constant(AST::IfCond { span: Span::new_dud(), condition: Box::new(conditional.clone()), then: Box::new(conseq.clone()), c_else: Box::new(alternative.clone()) })
+                })))
+            })))
+        }),
+    ));
 }
