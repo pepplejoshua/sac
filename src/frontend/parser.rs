@@ -209,6 +209,7 @@ pub fn parse() {
     let MINUS = make_token_parser(r"[-]");
     let STAR = make_token_parser(r"[*]");
     let SLASH = make_token_parser(r"[/]");
+    let ASSIGN = make_token_parser(r"[=]");
 
     let mut expression = Parser::<AST>::error("expression parser used before definition".into());
 
@@ -341,7 +342,7 @@ pub fn parse() {
         }),
     ));
 
-    let if_statement_parser = IF.clone().and_drop_left(expression.clone())
+    let if_statement = IF.clone().and_drop_left(expression.clone())
         .bind(Rc::new(closure!(clone ELSE, clone statement, |conditional: AST| -> Parser<AST> {
             statement.clone()
             .bind(Rc::new(closure!(clone ELSE, clone statement, clone conditional, |conseq: AST| -> Parser<AST> {
@@ -357,7 +358,7 @@ pub fn parse() {
             })))
         })));
 
-    let while_statement_parser = WHILE.clone()
+    let while_statement = WHILE.clone()
         .and_drop_left(expression.clone())
         .bind(Rc::new(closure!(clone statement, |cond: AST| -> Parser<AST> {
             statement.clone()
@@ -369,4 +370,30 @@ pub fn parse() {
                 })
             })))
         })));
+
+    let mut_var_decl = MUT.clone().and_drop_left(ID.clone())
+        .bind(Rc::new(closure!(clone ASSIGN, clone expression, clone SEMI_COLON, |name: String| -> Parser<AST> {
+            ASSIGN.clone().and_drop_left(expression.clone())
+            .bind(Rc::new(closure!(clone name, clone SEMI_COLON, |value: AST| -> Parser<AST> {
+                SEMI_COLON.clone().and_drop_left(constant(AST::Variable { 
+                    span: Span::new_dud(), 
+                    name: name.clone(), 
+                    value: Box::new(value.clone()), 
+                }))
+            })))
+        })));
+
+    let assignment_statement = ID.clone()
+        .bind(Rc::new(closure!(clone ASSIGN, clone SEMI_COLON, clone expression, |name: String| -> Parser<AST> {
+            ASSIGN.clone().and_drop_left(expression.clone())
+            .bind(Rc::new(closure!(clone SEMI_COLON, clone name, |value: AST| -> Parser<AST> {
+                SEMI_COLON.clone().and_drop_left(constant(AST::Assignment { 
+                    span: Span::new_dud(), 
+                    name: name.clone(), 
+                    value: Box::new(value.clone()) 
+                }))
+            })))
+    })));
+
+    
 }
