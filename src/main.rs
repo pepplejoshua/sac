@@ -57,13 +57,13 @@ fn main() {
     println!("binding: {:?}.\n", res);
 
     let mut dud = Source::dud();
-    dud.content = "!a1".into();
+    dud.content = "a1".into();
     let letter = regexp(r"[a-zA-Z]{1}");
     let digit = regexp(r"\d{1}");
     let letter_or_digit = letter.or(digit);
-    let maybe_letters_or_digits = maybe(letter_or_digit);
+    let maybe_letters_or_digits = maybe(letter_or_digit, "None".into());
     let res = maybe_letters_or_digits.parse(&mut dud);
-    println!("may letters or digits: {:?}.\n", res);
+    println!("maybe letters or digits: {:?}.\n", res);
 
     let mut src = Source::from(
         r"

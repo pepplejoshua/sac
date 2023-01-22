@@ -116,8 +116,8 @@ impl<T: Clone + 'static> Parser<T> {
         self.bind(Rc::new(move |value| constant(callback(value))))
     }
 
-    pub fn maybe<U: Clone + 'static>(parser: Parser<U>) -> Parser<U> {
-        parser.or(none())
+    pub fn maybe<U: Clone + 'static>(parser: Parser<U>, default: U) -> Parser<U> {
+        parser.or(constant(default))
     }
 
     pub fn parse(&self, src: &mut Source) -> ParseResult<T> {
@@ -156,8 +156,8 @@ pub fn none<U: Clone + 'static>() -> Parser<U> {
     Parser::<U>::none()
 }
 
-pub fn maybe<U: Clone + 'static>(parser: Parser<U>) -> Parser<U> {
-    Parser::<U>::maybe(parser)
+pub fn maybe<U: Clone + 'static>(parser: Parser<U>, default: U) -> Parser<U> {
+    Parser::<U>::maybe(parser, default)
 }
 
 #[allow(unused_variables, non_snake_case)]
@@ -247,9 +247,14 @@ pub fn parse() {
             }),
         )));
 
-    // let unary = maybe(NOT.clone()).bind(Rc::new(closure!(clone atom, |not: AST| -> AST {
-    //     atom.clone().map(Rc::new(closure!(clone not, |term: AST| -> AST| {
-
-    //     })))
-    // })));
+    let unary =
+        maybe(NOT.clone(), "".into()).bind(Rc::new(closure!(clone atom, |not_str: String| {
+            atom.clone().map(Rc::new(closure!(clone not_str, |term| {
+                if not_str == "" {
+                    term
+                } else {
+                    AST::Not { target: Box::new(term), span: Span::new_dud() }
+                }
+            })))
+        })));
 }
