@@ -257,4 +257,66 @@ pub fn parse() {
                 }
             })))
         })));
+
+    let make_infix_grammar = |operator_parser: Parser<String>,
+                              term_parser: Parser<AST>|
+     -> Parser<AST> {
+        term_parser.clone().bind(Rc::new(
+            closure!(clone operator_parser, clone term_parser, |term: AST| {
+                zero_or_more(operator_parser.clone().bind(Rc::new(closure!(clone term_parser, |operator: String| -> Parser<(String, AST)> {
+                    term_parser.clone().bind(Rc::new(closure!(clone operator, |inner_term: AST| -> Parser<(String, AST)> {
+                        constant((operator.clone(), inner_term.clone()))
+                    })))
+                })))).map(Rc::new(closure!(clone term, |ops_and_terms: Vec<(String, AST)>| -> AST {
+                    let res = ops_and_terms.into_iter().fold(term.clone(), |lhs: AST, op_and_term: (String, AST)| -> AST {
+                        let (op, rhs) = op_and_term;
+                        match op.as_ref() {
+                            "+" => {
+                                AST::Add {
+                                    lhs: Box::new(lhs.clone()),
+                                    rhs: Box::new(rhs.clone()),
+                                }
+                            }
+                            "-" => {
+                                AST::Subtract {
+                                    lhs: Box::new(lhs.clone()),
+                                    rhs: Box::new(rhs.clone()),
+                                }
+                            }
+                            "*" => {
+                                AST::Multiply {
+                                    lhs: Box::new(lhs.clone()),
+                                    rhs: Box::new(rhs.clone()),
+                                }
+                            }
+                            "/" => {
+                                AST::Divide {
+                                    lhs: Box::new(lhs.clone()),
+                                    rhs: Box::new(rhs.clone()),
+                                }
+                            }
+                            "==" => {
+                                AST::Equals {
+                                    lhs: Box::new(lhs.clone()),
+                                    rhs: Box::new(rhs.clone()),
+                                }
+                            }
+                            "!=" => {
+                                AST::NEquals {
+                                    lhs: Box::new(lhs.clone()),
+                                    rhs: Box::new(rhs.clone()),
+                                }
+                            }
+                            &_ => unreachable!(),
+                        }
+                    });
+                    res
+            })))
+            }),
+        ))
+    };
+
+    let product = make_infix_grammar(STAR.clone().or(SLASH.clone()), unary.clone());
+    let sum = make_infix_grammar(PLUS.clone().or(MINUS.clone()), product.clone());
+    let comparison = make_infix_grammar(EQUAL.clone().or(N_EQUALS.clone()), sum.clone());
 }
