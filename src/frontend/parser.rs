@@ -341,13 +341,32 @@ pub fn parse() {
         }),
     ));
 
-    let if_statement = IF.clone().and_drop_left(expression.clone()).bind(Rc::new(
-        closure!(clone ELSE, clone statement, |conditional: AST| -> Parser<AST> {
-            statement.clone().bind(Rc::new(closure!(clone ELSE, clone statement, clone conditional, |conseq: AST| -> Parser<AST> {
-                ELSE.clone().and_drop_left(statement.clone()).bind(Rc::new(closure!(clone conditional, clone conseq, |alternative: AST| -> Parser<AST> {
-                    constant(AST::IfCond { span: Span::new_dud(), condition: Box::new(conditional.clone()), then: Box::new(conseq.clone()), c_else: Box::new(alternative.clone()) })
+    let if_statement_parser = IF.clone().and_drop_left(expression.clone())
+        .bind(Rc::new(closure!(clone ELSE, clone statement, |conditional: AST| -> Parser<AST> {
+            statement.clone()
+            .bind(Rc::new(closure!(clone ELSE, clone statement, clone conditional, |conseq: AST| -> Parser<AST> {
+                ELSE.clone().and_drop_left(statement.clone())
+                .bind(Rc::new(closure!(clone conditional, clone conseq, |alternative: AST| -> Parser<AST> {
+                    constant(AST::IfCond { 
+                        span: Span::new_dud(), 
+                        condition: Box::new(conditional.clone()), 
+                        then: Box::new(conseq.clone()), 
+                        c_else: Box::new(alternative.clone()) 
+                    })
                 })))
             })))
-        }),
-    ));
+        })));
+
+    let while_statement_parser = WHILE.clone()
+        .and_drop_left(expression.clone())
+        .bind(Rc::new(closure!(clone statement, |cond: AST| -> Parser<AST> {
+            statement.clone()
+            .bind(Rc::new(closure!(clone cond, |body: AST| -> Parser<AST> {
+                constant(AST::WhileLoop { 
+                    span: Span::new_dud(), 
+                    condition: Box::new(cond.clone()), 
+                    body: Box::new(body.clone()) 
+                })
+            })))
+        })));
 }
