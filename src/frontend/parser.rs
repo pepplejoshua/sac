@@ -61,7 +61,7 @@ pub trait Parser<'a, Output> {
         NewOutput: 'a,
         P: Parser<'a, NewOutput> + 'a,
     {
-        BoxedParser::new(and_tuple(self, parser2))
+        BoxedParser::new(pair(self, parser2))
     }
 }
 
@@ -287,22 +287,22 @@ fn test_number_i64() {
 }
 
 #[allow(dead_code)]
-pub fn maybe<'a, P, R>(parser: P) -> impl Parser<'a, R>
+pub fn maybe<'a, P, R>(parser: P, value: R) -> impl Parser<'a, Vec<R>>
 where
     P: Parser<'a, R>,
     R: Clone + 'a,
 {
     move |input: &'a str| match parser.parse(input) {
-        Ok((new_input, res)) => Ok((new_input, res)),
-        Err(_) => Err(input),
+        Ok((new_input, res)) => Ok((new_input, vec![res])),
+        Err(_) => constant(vec![value.clone()]).parse(input),
     }
 }
 
 #[test]
 fn test_maybe() {
-    let parser = maybe(match_regex("[0-9]+"));
-    assert_eq!(parser.parse("1234"), Ok(("", "1234".into())));
-    assert_eq!(parser.parse("abcd"), Err("abcd"));
+    let parser = maybe(match_regex("[0-9]+"), "".into());
+    assert_eq!(parser.parse("1234"), Ok(("", vec!["1234".into()])));
+    assert_eq!(parser.parse("abcd"), Ok(("abcd", vec!["".into()])));
 }
 
 #[allow(dead_code)]
@@ -475,27 +475,6 @@ fn test_and_right() {
         literal("joshua").and_right(any_char.pred(|c| c.is_whitespace()).and_right(identifier));
 
     assert_eq!(parser.parse("joshua pepple"), Ok(("", "pepple".into())))
-}
-
-#[allow(dead_code)]
-pub fn and_tuple<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, (R1, R2)>
-where
-    P1: Parser<'a, R1>,
-    P2: Parser<'a, R2>,
-{
-    move |input| match parser1.parse(input) {
-        Ok((new_input, res)) => match parser2.parse(new_input) {
-            Ok((final_input, res2)) => Ok((final_input, (res, res2))),
-            Err(_) => Err(input),
-        },
-        Err(_) => Err(input),
-    }
-}
-
-#[test]
-fn test_and_tuple() {
-    let parser = number_i64.and_tuple(identifier);
-    assert_eq!(parser.parse("420Pepple"), Ok(("", (420, "Pepple".into()))))
 }
 
 #[allow(dead_code)]

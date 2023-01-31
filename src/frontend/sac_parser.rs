@@ -185,5 +185,51 @@ fn test_atom() {
     );
 }
 
+#[allow(dead_code)]
+fn unary(input: &str) -> ParseResult<AST> {
+    maybe(sliteral("!"), "".into())
+        .and_then(|not| {
+            atom.map(move |term| {
+                if not[0].is_empty() {
+                    term
+                } else {
+                    AST::Not {
+                        target: Box::new(term),
+                        span: Span::new_dud(),
+                    }
+                }
+            })
+        })
+        .parse(input)
+}
+
+#[test]
+fn test_unary() {
+    assert_eq!(
+        unary("!abcd"),
+        Ok((
+            "",
+            AST::Not {
+                target: Box::new(AST::Identifier {
+                    name: "abcd".into(),
+                    span: Span::new_dud()
+                }),
+                span: Span::new_dud()
+            }
+        ))
+    );
+
+    assert_eq!(
+        unary("abcd"),
+        Ok((
+            "",
+            AST::Identifier {
+                name: "abcd".into(),
+                span: Span::new_dud()
+            },
+        ))
+    );
+}
+
 #[allow(dead_code, unused_variables, non_snake_case)]
 pub fn parse(input: &str) {}
