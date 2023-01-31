@@ -30,7 +30,7 @@ fn test_id() {
 
 #[allow(dead_code)]
 fn expression(input: &str) -> ParseResult<AST> {
-    comparison(input)
+    ignored.and_right(comparison).parse(input)
 }
 
 #[allow(dead_code)]
@@ -133,21 +133,22 @@ fn test_call() {
 
 #[allow(dead_code)]
 fn number(input: &str) -> ParseResult<AST> {
-    ignored
-        .and_right(number_i64.map(|num| AST::Number {
+    number_i64
+        .map(|num| AST::Number {
             num,
             span: Span::new_dud(),
-        }))
+        })
         .parse(input)
 }
 
 #[allow(dead_code)]
 fn atom(input: &str) -> ParseResult<AST> {
-    call.or(id)
-        .or(number)
-        .or(sliteral("[(]")
-            .and_right(expression)
-            .and_then(|expr| sliteral("[)]").and_right(constant(expr))))
+    ignored
+        .and_right(
+            call.or(id).or(number).or(sliteral("[(]")
+                .and_right(expression)
+                .and_then(|expr| sliteral("[)]").and_right(constant(expr)))),
+        )
         .parse(input)
 }
 
@@ -550,6 +551,75 @@ fn test_comparison() {
                     num: 5,
                     span: Span::new_dud()
                 })
+            }
+        ))
+    );
+    assert_eq!(
+        comparison("a + 1 == b - 1 != c"),
+        Ok((
+            "",
+            AST::NEquals {
+                lhs: Box::new(AST::Equals {
+                    lhs: Box::new(AST::Add {
+                        lhs: Box::new(AST::Identifier {
+                            name: "a".into(),
+                            span: Span::new_dud()
+                        }),
+                        rhs: Box::new(AST::Number {
+                            num: 1,
+                            span: Span::new_dud()
+                        })
+                    }),
+                    rhs: Box::new(AST::Subtract {
+                        lhs: Box::new(AST::Identifier {
+                            name: "b".into(),
+                            span: Span::new_dud()
+                        }),
+                        rhs: Box::new(AST::Number {
+                            num: 1,
+                            span: Span::new_dud()
+                        })
+                    }),
+                }),
+                rhs: Box::new(AST::Identifier {
+                    name: "c".into(),
+                    span: Span::new_dud()
+                })
+            }
+        ))
+    );
+}
+
+#[allow(dead_code)]
+fn statement(_input: &str) -> ParseResult<AST> {
+    todo!()
+}
+
+#[allow(dead_code)]
+fn return_s(input: &str) -> ParseResult<AST> {
+    sliteral("ret")
+        .and_right(expression)
+        .and_then(|val| {
+            sliteral("[;]").and_right(constant(AST::Return {
+                value: Box::new(val),
+                span: Span::new_dud(),
+            }))
+        })
+        .parse(input)
+}
+
+#[test]
+fn test_return_s() {
+    assert_eq!(
+        return_s("ret a;"),
+        Ok((
+            "",
+            AST::Return {
+                value: Box::new(AST::Identifier {
+                    name: "a".into(),
+                    span: Span::new_dud()
+                }),
+                span: Span::new_dud()
             }
         ))
     );
