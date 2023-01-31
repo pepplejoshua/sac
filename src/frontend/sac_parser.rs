@@ -706,5 +706,51 @@ fn test_if_s() {
     )
 }
 
+#[allow(dead_code)]
+fn while_s(input: &str) -> ParseResult<AST> {
+    sliteral("while")
+        .and_right(expression)
+        .and_then(|conditional| {
+            statement.and_then(move |body| {
+                constant(AST::WhileLoop {
+                    span: Span::new_dud(),
+                    condition: Box::new(conditional.clone()),
+                    body: Box::new(body),
+                })
+            })
+        })
+        .parse(input)
+}
+
+#[test]
+fn test_while_s() {
+    assert_eq!(
+        while_s("while a == b ret a;"),
+        Ok((
+            "",
+            AST::WhileLoop {
+                span: Span::new_dud(),
+                condition: Box::new(AST::Equals {
+                    lhs: Box::new(AST::Identifier {
+                        name: "a".into(),
+                        span: Span::new_dud()
+                    }),
+                    rhs: Box::new(AST::Identifier {
+                        name: "b".into(),
+                        span: Span::new_dud()
+                    })
+                }),
+                body: Box::new(AST::Return {
+                    value: Box::new(AST::Identifier {
+                        name: "a".into(),
+                        span: Span::new_dud()
+                    }),
+                    span: Span::new_dud()
+                }),
+            }
+        ))
+    )
+}
+
 #[allow(dead_code, unused_variables, non_snake_case)]
 pub fn parse(input: &str) {}
