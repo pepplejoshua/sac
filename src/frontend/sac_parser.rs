@@ -5,6 +5,15 @@ use super::parser::*;
 use super::span::Span;
 
 #[allow(dead_code)]
+fn ignored(input: &str) -> ParseResult<()> {
+    let whitespace = match_regex(r"[ \n\r\t]+");
+    let comments = match_regex(r"[/][/].*").or(match_regex(r"(?s)[/][*].*[*][/]"));
+    zero_or_more(whitespace.or(comments))
+        .map(|_| ())
+        .parse(input)
+}
+
+#[allow(dead_code)]
 fn id(input: &str) -> ParseResult<AST> {
     identifier
         .map(|x| -> AST {
@@ -38,15 +47,6 @@ fn test_id() {
 #[allow(dead_code)]
 fn expression(input: &str) -> ParseResult<AST> {
     ignored.and_right(comparison).parse(input)
-}
-
-#[allow(dead_code)]
-fn ignored(input: &str) -> ParseResult<()> {
-    let whitespace = match_regex(r"[ \n\r\t]+");
-    let comments = match_regex(r"[/][/].*").or(match_regex(r"(?s)[/][*].*[*][/]"));
-    zero_or_more(whitespace.or(comments))
-        .map(|_| ())
-        .parse(input)
 }
 
 #[allow(dead_code)]
@@ -598,8 +598,16 @@ fn test_comparison() {
 }
 
 #[allow(dead_code)]
-fn statement(_input: &str) -> ParseResult<AST> {
-    return_s(_input)
+fn statement(input: &str) -> ParseResult<AST> {
+    return_s
+        .or(fn_s)
+        .or(if_s)
+        .or(while_s)
+        .or(var_s)
+        .or(assign_s)
+        .or(block_s)
+        .or(expr_s)
+        .parse(input)
 }
 
 #[allow(dead_code)]
@@ -618,7 +626,7 @@ fn return_s(input: &str) -> ParseResult<AST> {
 #[test]
 fn test_return_s() {
     assert_eq!(
-        return_s("ret a;"),
+        return_s("    ret a;"),
         Ok((
             "",
             AST::Return {
@@ -824,5 +832,217 @@ fn test_assign_s() {
     )
 }
 
-#[allow(dead_code, unused_variables, non_snake_case)]
-pub fn parse(input: &str) {}
+#[allow(dead_code)]
+fn block_s(input: &str) -> ParseResult<AST> {
+    sliteral("[{]")
+        .and_right(zero_or_more(statement))
+        .and_then(|stmts| {
+            sliteral("[}]").and_right(constant(AST::Block {
+                statements: stmts,
+                span: Span::new_dud(),
+            }))
+        })
+        .parse(input)
+}
+
+#[test]
+fn test_block_s() {
+    assert_eq!(
+        block_s("{ 1; ret a; 2 + 1; }"),
+        Ok((
+            "",
+            AST::Block {
+                statements: vec![
+                    AST::Number {
+                        num: 1,
+                        span: Span::new_dud()
+                    },
+                    AST::Return {
+                        value: Box::new(AST::Identifier {
+                            name: "a".into(),
+                            span: Span::new_dud()
+                        }),
+                        span: Span::new_dud()
+                    },
+                    AST::Add {
+                        lhs: Box::new(AST::Number {
+                            num: 2,
+                            span: Span::new_dud()
+                        }),
+                        rhs: Box::new(AST::Number {
+                            num: 1,
+                            span: Span::new_dud()
+                        })
+                    }
+                ],
+                span: Span::new_dud()
+            }
+        ))
+    )
+}
+
+#[allow(dead_code)]
+fn params(input: &str) -> ParseResult<Vec<String>> {
+    sidentifier
+        .and_then(|first| {
+            zero_or_more(sliteral("[,]").and_right(sidentifier))
+                .and_then(move |params| constant(vec![vec![first.clone()], params].concat()))
+        })
+        .or(constant(vec![]))
+        .parse(input)
+}
+
+#[allow(dead_code)]
+fn fn_s(input: &str) -> ParseResult<AST> {
+    sliteral(r"[|]")
+        .and_right(sidentifier)
+        .and_then(|fn_name| {
+            sliteral("[(]")
+                .and_right(params)
+                .and_then(closure!(clone fn_name, |parameters| {
+                    sliteral("[)]").and_right(block_s).and_then(closure!(clone fn_name, clone parameters, |blk| {
+                        constant(AST::FunctionDef {
+                            span: Span::new_dud(),
+                            name: fn_name.clone(),
+                            params: parameters.clone(),
+                            body: Box::new(blk),
+                        })
+                    }))
+                }))
+        })
+        .parse(input)
+}
+
+#[test]
+fn test_fn_s() {
+    assert_eq!(
+        fn_s(r"|fib(a, b) { ret a + b; }"),
+        Ok((
+            "",
+            AST::FunctionDef {
+                span: Span::new_dud(),
+                name: "fib".into(),
+                params: vec!["a".into(), "b".into(),],
+                body: Box::new(AST::Block {
+                    statements: vec![AST::Return {
+                        value: Box::new(AST::Add {
+                            lhs: Box::new(AST::Identifier {
+                                name: "a".into(),
+                                span: Span::new_dud()
+                            }),
+                            rhs: Box::new(AST::Identifier {
+                                name: "b".into(),
+                                span: Span::new_dud()
+                            })
+                        }),
+                        span: Span::new_dud()
+                    }],
+                    span: Span::new_dud()
+                })
+            }
+        ))
+    )
+}
+
+pub fn sac_parser(input: &str) -> ParseResult<AST> {
+    ignored
+        .and_right(zero_or_more(statement))
+        .map(|stmts| AST::Block {
+            statements: stmts,
+            span: Span::new_dud(),
+        })
+        .parse(input)
+}
+
+#[test]
+fn test_sac_parser() {
+    let src = r#"
+|factorial(n) {
+    mut res = 1;
+    while n != 1 {
+        res = res * n;
+        n = n - 1;
+    }
+    ret res;
+}"#;
+    assert_eq!(
+        sac_parser(src),
+        Ok((
+            "",
+            AST::Block {
+                statements: vec![AST::FunctionDef {
+                    span: Span::new_dud(),
+                    name: "factorial".into(),
+                    params: vec!["n".into()],
+                    body: Box::new(AST::Block {
+                        statements: vec![
+                            AST::Variable {
+                                span: Span::new_dud(),
+                                name: "res".into(),
+                                value: Box::new(AST::Number {
+                                    num: 1,
+                                    span: Span::new_dud()
+                                })
+                            },
+                            AST::WhileLoop {
+                                span: Span::new_dud(),
+                                condition: Box::new(AST::NEquals {
+                                    lhs: Box::new(AST::Identifier {
+                                        name: "n".into(),
+                                        span: Span::new_dud()
+                                    }),
+                                    rhs: Box::new(AST::Number {
+                                        span: Span::new_dud(),
+                                        num: 1
+                                    }),
+                                }),
+                                body: Box::new(AST::Block {
+                                    statements: vec![
+                                        AST::Assignment {
+                                            span: Span::new_dud(),
+                                            name: "res".into(),
+                                            value: Box::new(AST::Multiply {
+                                                lhs: Box::new(AST::Identifier {
+                                                    name: "res".into(),
+                                                    span: Span::new_dud()
+                                                }),
+                                                rhs: Box::new(AST::Identifier {
+                                                    name: "n".into(),
+                                                    span: Span::new_dud()
+                                                }),
+                                            },)
+                                        },
+                                        AST::Assignment {
+                                            span: Span::new_dud(),
+                                            name: "n".into(),
+                                            value: Box::new(AST::Subtract {
+                                                lhs: Box::new(AST::Identifier {
+                                                    name: "n".into(),
+                                                    span: Span::new_dud()
+                                                }),
+                                                rhs: Box::new(AST::Number {
+                                                    span: Span::new_dud(),
+                                                    num: 1
+                                                }),
+                                            },)
+                                        }
+                                    ],
+                                    span: Span::new_dud()
+                                })
+                            },
+                            AST::Return {
+                                value: Box::new(AST::Identifier {
+                                    name: "res".into(),
+                                    span: Span::new_dud()
+                                }),
+                                span: Span::new_dud()
+                            }
+                        ],
+                        span: Span::new_dud()
+                    })
+                }],
+                span: Span::new_dud()
+            }
+        ))
+    )
+}
