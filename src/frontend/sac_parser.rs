@@ -16,6 +16,11 @@ fn id(input: &str) -> ParseResult<AST> {
         .parse(input)
 }
 
+#[allow(dead_code)]
+fn sidentifier(input: &str) -> ParseResult<String> {
+    ignored.and_right(identifier).parse(input)
+}
+
 #[test]
 fn test_id() {
     assert_eq!(
@@ -48,7 +53,7 @@ fn ignored(input: &str) -> ParseResult<()> {
 fn args(input: &str) -> ParseResult<Vec<AST>> {
     expression
         .and_then(|arg| {
-            zero_or_more(sliteral(",").and_right(ignored).and_right(expression))
+            zero_or_more(sliteral(",").and_right(expression))
                 .and_then(move |args| constant(vec![vec![arg.clone()], args].concat()))
         })
         .or(constant(vec![]))
@@ -750,6 +755,40 @@ fn test_while_s() {
             }
         ))
     )
+}
+
+#[allow(dead_code)]
+fn var_s(input: &str) -> ParseResult<AST> {
+    sliteral("mut")
+        .and_right(sidentifier)
+        .and_then(|var_name| {
+            sliteral("=").and_right(expression).and_then(move |value| {
+                sliteral("[;]").and_right(constant(AST::Variable {
+                    span: Span::new_dud(),
+                    name: var_name.clone(),
+                    value: Box::new(value),
+                }))
+            })
+        })
+        .parse(input)
+}
+
+#[test]
+fn test_var_s() {
+    assert_eq!(
+        var_s("mut a = c;"),
+        Ok((
+            "",
+            AST::Variable {
+                span: Span::new_dud(),
+                name: "a".into(),
+                value: Box::new(AST::Identifier {
+                    name: "c".into(),
+                    span: Span::new_dud()
+                })
+            }
+        ))
+    );
 }
 
 #[allow(dead_code, unused_variables, non_snake_case)]
