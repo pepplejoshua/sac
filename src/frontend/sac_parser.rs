@@ -1,3 +1,5 @@
+use closure::closure;
+
 use super::ast::*;
 use super::parser::*;
 use super::span::Span;
@@ -592,7 +594,7 @@ fn test_comparison() {
 
 #[allow(dead_code)]
 fn statement(_input: &str) -> ParseResult<AST> {
-    todo!()
+    return_s(_input)
 }
 
 #[allow(dead_code)]
@@ -641,6 +643,64 @@ fn test_expr_s() {
             AST::Number {
                 num: 1,
                 span: Span::new_dud()
+            }
+        ))
+    )
+}
+
+#[allow(dead_code)]
+fn if_s(input: &str) -> ParseResult<AST> {
+    sliteral("if")
+        .and_right(expression)
+        .and_then(|conditional| {
+            statement.and_then(closure!(clone conditional, |then_body| {
+                sliteral("else")
+                    .and_right(statement)
+                    .and_then(closure!(clone conditional, clone then_body, |else_body| {
+                        constant(AST::IfCond {
+                            span: Span::new_dud(),
+                            condition: Box::new(conditional.clone()),
+                            then: Box::new(then_body.clone()),
+                            c_else: Box::new(else_body),
+                        })
+                    }))
+            }))
+        })
+        .parse(input)
+}
+
+#[test]
+fn test_if_s() {
+    assert_eq!(
+        if_s("if a == b ret a; else ret b;"),
+        Ok((
+            "",
+            AST::IfCond {
+                span: Span::new_dud(),
+                condition: Box::new(AST::Equals {
+                    lhs: Box::new(AST::Identifier {
+                        name: "a".into(),
+                        span: Span::new_dud()
+                    }),
+                    rhs: Box::new(AST::Identifier {
+                        name: "b".into(),
+                        span: Span::new_dud()
+                    })
+                }),
+                then: Box::new(AST::Return {
+                    value: Box::new(AST::Identifier {
+                        name: "a".into(),
+                        span: Span::new_dud()
+                    }),
+                    span: Span::new_dud()
+                }),
+                c_else: Box::new(AST::Return {
+                    value: Box::new(AST::Identifier {
+                        name: "b".into(),
+                        span: Span::new_dud()
+                    }),
+                    span: Span::new_dud()
+                }),
             }
         ))
     )
