@@ -625,5 +625,26 @@ fn test_return_s() {
     );
 }
 
+#[allow(dead_code)]
+fn expr_s(input: &str) -> ParseResult<AST> {
+    expression
+        .and_then(|expr| sliteral("[;]").and_right(constant(expr)))
+        .parse(input)
+}
+
+#[test]
+fn test_expr_s() {
+    assert_eq!(
+        expr_s("   1   ;"),
+        Ok((
+            "",
+            AST::Number {
+                num: 1,
+                span: Span::new_dud()
+            }
+        ))
+    )
+}
+
 #[allow(dead_code, unused_variables, non_snake_case)]
 pub fn parse(input: &str) {}
