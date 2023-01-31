@@ -894,21 +894,19 @@ fn params(input: &str) -> ParseResult<Vec<String>> {
 
 #[allow(dead_code)]
 fn fn_s(input: &str) -> ParseResult<AST> {
-    sliteral(r"[|]")
+    sliteral(r":")
         .and_right(sidentifier)
         .and_then(|fn_name| {
-            sliteral("[(]")
-                .and_right(params)
-                .and_then(closure!(clone fn_name, |parameters| {
-                    sliteral("[)]").and_right(block_s).and_then(closure!(clone fn_name, clone parameters, |blk| {
-                        constant(AST::FunctionDef {
-                            span: Span::new_dud(),
-                            name: fn_name.clone(),
-                            params: parameters.clone(),
-                            body: Box::new(blk),
-                        })
-                    }))
+            params.and_then(closure!(clone fn_name, |parameters| {
+                block_s.and_then(closure!(clone fn_name, clone parameters, |blk| {
+                    constant(AST::FunctionDef {
+                        span: Span::new_dud(),
+                        name: fn_name.clone(),
+                        params: parameters.clone(),
+                        body: Box::new(blk),
+                    })
                 }))
+            }))
         })
         .parse(input)
 }
@@ -916,7 +914,7 @@ fn fn_s(input: &str) -> ParseResult<AST> {
 #[test]
 fn test_fn_s() {
     assert_eq!(
-        fn_s(r"|fib(a, b) { ret a + b; }"),
+        fn_s(r":fib a, b { ret a + b; }"),
         Ok((
             "",
             AST::FunctionDef {
@@ -957,7 +955,7 @@ pub fn sac_parser(input: &str) -> ParseResult<AST> {
 #[test]
 fn test_sac_parser() {
     let src = r#"
-|factorial(n) {
+:factorial n {
     mut res = 1;
     while n != 1 {
         res = res * n;
