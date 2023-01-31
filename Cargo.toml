@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 closure = "0.3.0"
+derive_more = "0.99.17"
 regex = "1.7.1"

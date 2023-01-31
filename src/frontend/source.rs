@@ -1,5 +1,10 @@
-use super::parser::ParseResult;
 use regex::Regex;
+
+#[derive(Debug, Clone)]
+pub enum ParseResult<T: Clone> {
+    Some(T, Source),
+    None,
+}
 
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
@@ -40,7 +45,7 @@ impl Source {
         match mat {
             Some(val) => {
                 if val.start() != self.index {
-                    return ParseResult::None;
+                    ParseResult::None
                 } else {
                     self.index += val.end() - val.start();
                     let matched = self
@@ -48,7 +53,7 @@ impl Source {
                         .get(val.start()..val.end())
                         .unwrap()
                         .to_string();
-                    return ParseResult::Some(matched, self.clone());
+                    ParseResult::Some(matched, self.clone())
                 }
             }
             None => ParseResult::None,

@@ -1,7 +1,7 @@
 use super::span::Span;
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AST {
     Number {
         num: i64,
@@ -78,6 +78,10 @@ pub enum AST {
         span: Span,
         condition: Box<AST>,
         body: Box<AST>,
+    },
+    Error {
+        span: Span,
+        msg: String,
     },
 }
 
@@ -317,6 +321,7 @@ impl AST {
                 condition: _,
                 body: _,
             } => span.clone(),
+            AST::Error { span, msg: _ } => span.clone(),
         }
     }
 }

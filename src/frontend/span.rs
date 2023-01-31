@@ -1,6 +1,6 @@
 use std::cmp;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Span {
     pub file: String,
     pub start_line: i32,

@@ -1,435 +1,520 @@
-use std::rc::Rc;
-
 use regex::Regex;
 
-use super::ast::AST;
-use super::source::Source;
-use super::span::Span;
-use closure::closure;
+pub type ParseResult<'a, Output> = Result<(&'a str, Output), &'a str>;
 
-#[derive(Debug, Clone)]
-pub enum ParseResult<T: Clone + 'static> {
-    Some(T, Source),
-    None,
+pub trait Parser<'a, Output> {
+    fn parse(&self, input: &'a str) -> ParseResult<'a, Output>;
+
+    fn map<F, NewOutput>(self, map_fn: F) -> BoxedParser<'a, NewOutput>
+    where
+        Self: Sized + 'a,
+        Output: 'a,
+        NewOutput: 'a,
+        F: Fn(Output) -> NewOutput + 'a,
+    {
+        BoxedParser::new(map(self, map_fn))
+    }
+
+    fn pred<F>(self, predicate: F) -> BoxedParser<'a, Output>
+    where
+        Self: Sized + 'a,
+        Output: 'a,
+        F: Fn(&Output) -> bool + 'a,
+    {
+        BoxedParser::new(pred(self, predicate))
+    }
+
+    fn and_then<F, NextParser, NewOutput>(self, f: F) -> BoxedParser<'a, NewOutput>
+    where
+        Self: Sized + 'a,
+        Output: 'a,
+        NewOutput: 'a,
+        NextParser: Parser<'a, NewOutput> + 'a,
+        F: Fn(Output) -> NextParser + 'a,
+    {
+        BoxedParser::new(and_then(self, f))
+    }
+
+    fn or<P>(self, parser2: P) -> BoxedParser<'a, Output>
+    where
+        Self: Sized + 'a,
+        Output: 'a,
+        P: Parser<'a, Output> + 'a,
+    {
+        BoxedParser::new(or(self, parser2))
+    }
+
+    fn and_drop<P, NewOutput>(self, parser2: P) -> BoxedParser<'a, NewOutput>
+    where
+        Self: Sized + 'a,
+        Output: 'a,
+        NewOutput: 'a,
+        P: Parser<'a, NewOutput> + 'a,
+    {
+        BoxedParser::new(and_drop(self, parser2))
+    }
+
+    fn and_tuple<P, NewOutput>(self, parser2: P) -> BoxedParser<'a, (Output, NewOutput)>
+    where
+        Self: Sized + 'a,
+        Output: 'a,
+        NewOutput: 'a,
+        P: Parser<'a, NewOutput> + 'a,
+    {
+        BoxedParser::new(and_tuple(self, parser2))
+    }
 }
 
-#[derive(Clone)]
-pub struct Parser<T: Clone + 'static> {
-    pub p: Rc<dyn Fn(&mut Source) -> ParseResult<T>>,
+pub struct BoxedParser<'a, Output> {
+    pub p: Box<dyn Parser<'a, Output> + 'a>,
 }
 
-impl<T: Clone + 'static> Parser<T> {
-    pub fn n(parser: Rc<dyn Fn(&mut Source) -> ParseResult<T>>) -> Parser<T> {
-        Parser { p: parser }
+impl<'a, Output> BoxedParser<'a, Output> {
+    pub fn new<P>(p: P) -> Self
+    where
+        P: Parser<'a, Output> + 'a,
+    {
+        BoxedParser { p: Box::new(p) }
     }
+}
 
-    pub fn regexp(regexp: &'static str) -> Parser<String> {
-        Parser::n(Rc::new(move |src| -> ParseResult<String> {
-            src.match_reg(Regex::new(regexp).unwrap())
-        }))
+impl<'a, Output> Parser<'a, Output> for BoxedParser<'a, Output> {
+    fn parse(&self, input: &'a str) -> ParseResult<'a, Output> {
+        self.p.parse(input)
     }
+}
 
-    pub fn constant<U: Clone + 'static>(value: U) -> Parser<U> {
-        Parser::n(Rc::new(move |src| -> ParseResult<U> {
-            ParseResult::Some(value.clone(), src.clone())
-        }))
+impl<'a, F, Output> Parser<'a, Output> for F
+where
+    F: Fn(&'a str) -> ParseResult<Output>,
+{
+    fn parse(&self, input: &'a str) -> ParseResult<'a, Output> {
+        self(input)
     }
+}
 
-    pub fn none<U: Clone + 'static>() -> Parser<U> {
-        Parser::n(Rc::new(|_| -> ParseResult<U> { ParseResult::None }))
+#[allow(dead_code)]
+pub fn literal<'a>(exp: &'a str) -> impl Parser<()> {
+    move |input: &'a str| match input.get(0..exp.len()) {
+        Some(next) if next == exp => Ok((&input[exp.len()..], ())),
+        _ => Err(input),
     }
+}
 
-    #[allow(unreachable_code)]
-    pub fn error(msg: String) -> Parser<AST> {
-        panic!("{msg}");
-    }
+#[test]
+fn test_literal() {
+    let parse_pepple = literal("Pepple");
+    assert_eq!(Ok((" Joshua", ())), parse_pepple.parse("Pepple Joshua"));
+    assert_eq!(Ok((" Pepple", ())), parse_pepple.parse("Pepple Pepple"));
+    assert_eq!(Err("Joshua Pepple"), parse_pepple.parse("Joshua Pepple"));
+}
 
-    pub fn or(self, rhs: Parser<T>) -> Parser<T> {
-        Parser::n(Rc::new(move |src| -> ParseResult<T> {
-            let res = self.parse(src);
-            match res {
-                ParseResult::Some(_, _) => res,
-                ParseResult::None => rhs.parse(src),
-            }
-        }))
-    }
-
-    pub fn and(self, rhs: Parser<T>) -> Parser<Vec<T>> {
-        Parser::n(Rc::new(move |src| -> ParseResult<Vec<T>> {
-            let res = self.parse(src);
-            let mut results: Vec<T> = vec![];
-            match res {
-                ParseResult::Some(v, _) => {
-                    results.push(v);
-                    let res_r = rhs.parse(src);
-                    match res_r {
-                        ParseResult::Some(v, src) => {
-                            results.push(v);
-                            ParseResult::Some(results, src.clone())
-                        }
-                        ParseResult::None => ParseResult::None,
-                    }
-                }
-                ParseResult::None => ParseResult::None,
-            }
-        }))
-    }
-
-    pub fn zero_or_more<U: Clone + 'static>(parser: Parser<U>) -> Parser<Vec<U>> {
-        Parser::n(Rc::new(move |src| -> ParseResult<Vec<U>> {
-            let mut results: Vec<U> = vec![];
-            let mut item;
-            'outer: loop {
-                item = parser.parse(src);
-                match item {
-                    ParseResult::Some(v, _) => {
-                        results.push(v);
-                    }
-                    ParseResult::None => {
-                        break 'outer;
-                    }
-                }
-            }
-            ParseResult::Some(results, src.clone())
-        }))
-    }
-
-    pub fn bind<U: Clone + 'static>(
-        self,
-        callback: Rc<dyn Fn(T) -> Parser<U> + 'static>,
-    ) -> Parser<U> {
-        Parser::n(Rc::new(move |src| -> ParseResult<U> {
-            let res = self.parse(src);
-            match res {
-                ParseResult::Some(v, _) => callback(v).parse(src),
-                ParseResult::None => ParseResult::None,
-            }
-        }))
-    }
-
-    pub fn and_drop_left<U: Clone + 'static>(self, rhs: Parser<U>) -> Parser<U> {
-        self.bind(Rc::new(move |_: T| -> Parser<U> { rhs.clone() }))
-        // return self.bind(Box::new(move |_| rhs));
-    }
-
-    pub fn map<U: Clone + 'static>(self, callback: Rc<dyn Fn(T) -> U + 'static>) -> Parser<U> {
-        self.bind(Rc::new(move |value| constant(callback(value))))
-    }
-
-    pub fn maybe<U: Clone + 'static>(parser: Parser<U>, default: U) -> Parser<U> {
-        parser.or(constant(default))
-    }
-
-    pub fn parse(&self, src: &mut Source) -> ParseResult<T> {
-        (self.p)(src)
-    }
-
-    pub fn parse_string(&self, string: String) -> Result<T, String> {
-        let mut src = Source::from(string);
-        let res = self.parse(&mut src);
-        match res {
-            ParseResult::Some(v, _) => {
-                if src.index != src.content.len() {
-                    Err(format!("Parse error at index {}", src.index))
-                } else {
-                    Ok(v)
-                }
-            }
-            ParseResult::None => Err("Parse error at index 0".into()),
+#[allow(dead_code)]
+pub fn match_regex<'a>(exp: &'a str) -> impl Parser<String> {
+    move |input: &'a str| {
+        let reg = Regex::new(exp).unwrap();
+        match reg.find_at(input, 0) {
+            Some(val) if val.start() == 0 => Ok((
+                &input[val.end()..],
+                input[val.start()..val.end()].to_string(),
+            )),
+            _ => Err(input),
         }
     }
 }
 
-pub fn regexp(reg: &'static str) -> Parser<String> {
-    Parser::<String>::regexp(reg)
+#[test]
+fn test_match_regex() {
+    let parse_number = match_regex("[0-9]+");
+    assert_eq!(
+        Ok(("abcde", "12345".to_string())),
+        parse_number.parse("12345abcde")
+    );
+    assert_eq!(Err("Joshua Pepple"), parse_number.parse("Joshua Pepple"));
 }
 
-pub fn zero_or_more<U: Clone + 'static>(parser: Parser<U>) -> Parser<Vec<U>> {
-    Parser::<U>::zero_or_more(parser)
+#[allow(dead_code)]
+pub fn pair<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, (R1, R2)>
+where
+    P1: Parser<'a, R1>,
+    P2: Parser<'a, R2>,
+{
+    move |input| {
+        parser1.parse(input).and_then(|(next_input, result1)| {
+            parser2
+                .parse(next_input)
+                .map(|(final_input, result2)| (final_input, (result1, result2)))
+        })
+    }
 }
 
-pub fn constant<U: Clone + 'static>(value: U) -> Parser<U> {
-    Parser::<U>::constant(value)
+#[test]
+fn test_pair() {
+    let tag_opener = pair(literal("<"), identifier);
+
+    assert_eq!(
+        Ok(("/>", ((), "my_tag".to_string()))),
+        tag_opener.parse("<my_tag/>")
+    );
 }
 
-pub fn none<U: Clone + 'static>() -> Parser<U> {
-    Parser::<U>::none()
+#[allow(dead_code)]
+pub fn map<'a, P, F, A, B>(parser: P, map_fn: F) -> impl Parser<'a, B>
+where
+    P: Parser<'a, A>,
+    F: Fn(A) -> B,
+{
+    move |input| {
+        parser
+            .parse(input)
+            .map(|(next_input, res)| (next_input, map_fn(res)))
+    }
 }
 
-pub fn maybe<U: Clone + 'static>(parser: Parser<U>, default: U) -> Parser<U> {
-    Parser::<U>::maybe(parser, default)
+#[test]
+fn test_map() {
+    let tag_opener = map(pair(literal("<"), identifier), |(_, res2)| res2);
+
+    assert_eq!(
+        Ok(("/>", "my_tag".to_string())),
+        tag_opener.parse("<my_tag/>")
+    );
 }
 
-#[allow(unused_variables, non_snake_case)]
-pub fn parse() {
-    let whitespace = regexp(r"[ \n\r\t]+");
-    let comments = regexp(r"[/][/].*").or(regexp(r"(?s)[/][*].*[*][/]"));
-    let ignored = zero_or_more(whitespace.or(comments));
+#[allow(dead_code)]
+pub fn identifier(input: &str) -> ParseResult<String> {
+    let mut matched = String::new();
+    let mut chars = input.chars();
 
-    let make_token_parser = closure!(clone ignored, |pattern: &'static str| {
-        regexp(pattern).bind(Rc::new(closure!(clone ignored, |value| {
-            ignored.clone().and_drop_left(constant(value))
-        })))
-    });
-
-    // keywords
-    let FN = make_token_parser(r"fn\b");
-    let IF = make_token_parser(r"if\b");
-    let ELSE = make_token_parser(r"else\b");
-    let RETURN = make_token_parser(r"ret\b");
-    let MUT = make_token_parser(r"mut\b");
-    let WHILE = make_token_parser(r"while\b");
-
-    // punctuators
-    let COMMA = make_token_parser(r",");
-    let SEMI_COLON = make_token_parser(r";");
-    let LEFT_PAREN = make_token_parser(r"[(]");
-    let RIGHT_PAREN = make_token_parser(r"[)]");
-    let LEFT_BRACE = make_token_parser(r"[{]");
-    let RIGHT_BRACE = make_token_parser(r"[}]");
-
-    // constants
-    let NUMBER = make_token_parser(r"[0-9]+").map(Rc::new(|digits| AST::Number {
-        num: digits.parse::<i64>().unwrap(),
-        span: Span::new_dud(),
-    }));
-    let ID = make_token_parser(r"[a-zA-Z_][a-zA-Z0-9_]*");
-
-    // generates AST token for an identifier
-    let id = ID.clone().map(Rc::new(|x| AST::Identifier {
-        name: x,
-        span: Span::new_dud(),
-    }));
-
-    // operators
-    let NOT = make_token_parser(r"!");
-    let EQUAL = make_token_parser(r"==");
-    let N_EQUALS = make_token_parser(r"!=");
-    let PLUS = make_token_parser(r"[+]");
-    let MINUS = make_token_parser(r"[-]");
-    let STAR = make_token_parser(r"[*]");
-    let SLASH = make_token_parser(r"[/]");
-    let ASSIGN = make_token_parser(r"[=]");
-
-    let mut expression = Parser::<AST>::error("expression parser used before definition".into());
-
-    let args = expression
-        .clone()
-        .bind(Rc::new(closure!(clone expression, clone COMMA, |arg| {
-            zero_or_more(COMMA.clone().and_drop_left(expression.clone()))
-                .bind(Rc::new(move |args| {
-                    constant([vec![arg.clone()], args].concat())
-                }))
-                .or(constant(vec![]))
-        })));
-
-    let call = ID.clone().bind(Rc::new(closure!(
-        clone LEFT_PAREN,
-        clone RIGHT_PAREN,
-        |called: String| -> Parser<AST> {
-            LEFT_PAREN
-                .clone()
-                .and_drop_left(args.clone().bind(Rc::new(closure!(clone RIGHT_PAREN, |p_args: Vec<AST>| -> Parser<AST> {
-                    RIGHT_PAREN.clone().and_drop_left(constant(AST::Call {
-                        called: called.clone(),
-                        args: p_args,
-                        span: Span::new_dud(),
-                    }))
-                }))))
+    match chars.next() {
+        Some(next) if next.is_alphabetic() => {
+            matched.push(next);
         }
-    )));
+        _ => return Err(input),
+    }
 
-    let atom = call.clone().or(id.clone()).or(NUMBER.clone()).or(LEFT_PAREN
-        .clone()
-        .and_drop_left(expression.clone())
-        .bind(Rc::new(
-            closure!(clone RIGHT_PAREN, |e: AST| -> Parser<AST> {
-                RIGHT_PAREN.clone().and_drop_left(constant(e))
-            }),
-        )));
+    for next in chars {
+        if next.is_alphabetic() || next == '_' || next == '-' {
+            matched.push(next);
+        } else if next.is_numeric() {
+            matched.push(next);
+            break;
+        } else {
+            break;
+        }
+    }
 
-    let unary =
-        maybe(NOT.clone(), "".into()).bind(Rc::new(closure!(clone atom, |not_str: String| {
-            atom.clone().map(Rc::new(closure!(clone not_str, |term| {
-                if not_str == "" {
-                    term
-                } else {
-                    AST::Not { target: Box::new(term), span: Span::new_dud() }
-                }
-            })))
-        })));
+    let next_index = matched.len();
+    Ok((&input[next_index..], matched))
+}
 
-    let make_infix_grammar = |operator_parser: Parser<String>,
-                              term_parser: Parser<AST>|
-     -> Parser<AST> {
-        term_parser.clone().bind(Rc::new(
-            closure!(clone operator_parser, clone term_parser, |term: AST| {
-                zero_or_more(operator_parser.clone().bind(Rc::new(closure!(clone term_parser, |operator: String| -> Parser<(String, AST)> {
-                    term_parser.clone().bind(Rc::new(closure!(clone operator, |inner_term: AST| -> Parser<(String, AST)> {
-                        constant((operator.clone(), inner_term.clone()))
-                    })))
-                })))).map(Rc::new(closure!(clone term, |ops_and_terms: Vec<(String, AST)>| -> AST {
-                    let res = ops_and_terms.into_iter().fold(term.clone(), |lhs: AST, op_and_term: (String, AST)| -> AST {
-                        let (op, rhs) = op_and_term;
-                        match op.as_ref() {
-                            "+" => {
-                                AST::Add {
-                                    lhs: Box::new(lhs.clone()),
-                                    rhs: Box::new(rhs.clone()),
-                                }
-                            }
-                            "-" => {
-                                AST::Subtract {
-                                    lhs: Box::new(lhs.clone()),
-                                    rhs: Box::new(rhs.clone()),
-                                }
-                            }
-                            "*" => {
-                                AST::Multiply {
-                                    lhs: Box::new(lhs.clone()),
-                                    rhs: Box::new(rhs.clone()),
-                                }
-                            }
-                            "/" => {
-                                AST::Divide {
-                                    lhs: Box::new(lhs.clone()),
-                                    rhs: Box::new(rhs.clone()),
-                                }
-                            }
-                            "==" => {
-                                AST::Equals {
-                                    lhs: Box::new(lhs.clone()),
-                                    rhs: Box::new(rhs.clone()),
-                                }
-                            }
-                            "!=" => {
-                                AST::NEquals {
-                                    lhs: Box::new(lhs.clone()),
-                                    rhs: Box::new(rhs.clone()),
-                                }
-                            }
-                            &_ => unreachable!(),
-                        }
-                    });
-                    res
-            })))
-            }),
-        ))
-    };
+#[test]
+fn test_identifier_parser() {
+    assert_eq!(
+        Ok(("", "i_am_an_identifier".to_string())),
+        identifier("i_am_an_identifier")
+    );
 
-    let product = make_infix_grammar(STAR.clone().or(SLASH.clone()), unary.clone());
-    let sum = make_infix_grammar(PLUS.clone().or(MINUS.clone()), product.clone());
-    let comparison = make_infix_grammar(EQUAL.clone().or(N_EQUALS.clone()), sum.clone());
+    assert_eq!(
+        Ok((" entirely an identifier", "not".to_string())),
+        identifier("not entirely an identifier")
+    );
 
-    expression.p = comparison.p;
+    assert_eq!(
+        Err("!not entirely an identifier"),
+        identifier("!not entirely an identifier")
+    );
+}
 
-    // statements
-    let statement = Parser::<AST>::error("statement parser used before definition".into());
+#[allow(dead_code)]
+pub fn left<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, R1>
+where
+    P1: Parser<'a, R1>,
+    P2: Parser<'a, R2>,
+{
+    map(pair(parser1, parser2), |(left, _)| left)
+}
 
-    let return_statement = RETURN
-        .clone()
-        .and_drop_left(expression.clone())
-        .bind(Rc::new(closure!(clone SEMI_COLON, |term| {
-            SEMI_COLON.clone().and_drop_left(constant(AST::Return {
-                value: Box::new(term.clone()),
-                span: Span::new_dud(),
-            }))
-        })));
+#[allow(dead_code)]
+pub fn right<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, R2>
+where
+    P1: Parser<'a, R1>,
+    P2: Parser<'a, R2>,
+{
+    map(pair(parser1, parser2), |(_, right)| right)
+}
 
-    let expression_statement = expression.clone().bind(Rc::new(
-        closure!(clone SEMI_COLON, |term: AST| -> Parser<AST> {
-            SEMI_COLON.clone().and_drop_left(constant(term.clone()))
-        }),
-    ));
+#[test]
+fn test_left_and_right() {
+    let first = match_regex("joshua");
+    let space = match_regex("[ \r\t\n]");
+    let last = match_regex("pepple");
 
-    let if_statement = IF.clone().and_drop_left(expression.clone())
-        .bind(Rc::new(closure!(clone ELSE, clone statement, |conditional: AST| -> Parser<AST> {
-            statement.clone()
-            .bind(Rc::new(closure!(clone ELSE, clone statement, clone conditional, |conseq: AST| -> Parser<AST> {
-                ELSE.clone().and_drop_left(statement.clone())
-                .bind(Rc::new(closure!(clone conditional, clone conseq, |alternative: AST| -> Parser<AST> {
-                    constant(AST::IfCond { 
-                        span: Span::new_dud(), 
-                        condition: Box::new(conditional.clone()), 
-                        then: Box::new(conseq.clone()), 
-                        c_else: Box::new(alternative.clone()) 
-                    })
-                })))
-            })))
-        })));
+    assert_eq!(
+        Ok(("", ("joshua".to_string(), "pepple".to_string()))),
+        pair(left(first, space), last).parse("joshua pepple")
+    );
+}
 
-    let while_statement = WHILE.clone()
-        .and_drop_left(expression.clone())
-        .bind(Rc::new(closure!(clone statement, |cond: AST| -> Parser<AST> {
-            statement.clone()
-            .bind(Rc::new(closure!(clone cond, |body: AST| -> Parser<AST> {
-                constant(AST::WhileLoop { 
-                    span: Span::new_dud(), 
-                    condition: Box::new(cond.clone()), 
-                    body: Box::new(body.clone()) 
-                })
-            })))
-        })));
+#[allow(dead_code)]
+pub fn constant<'a, U>(value: U) -> impl Parser<'a, U>
+where
+    U: Clone + 'a,
+{
+    move |input: &'a str| Ok((input, value.clone()))
+}
 
-    let mut_var_decl = MUT.clone().and_drop_left(ID.clone())
-        .bind(Rc::new(closure!(clone ASSIGN, clone expression, clone SEMI_COLON, |name: String| -> Parser<AST> {
-            ASSIGN.clone().and_drop_left(expression.clone())
-            .bind(Rc::new(closure!(clone name, clone SEMI_COLON, |value: AST| -> Parser<AST> {
-                SEMI_COLON.clone().and_drop_left(constant(AST::Variable { 
-                    span: Span::new_dud(), 
-                    name: name.clone(), 
-                    value: Box::new(value.clone()), 
-                }))
-            })))
-        })));
+#[test]
+fn test_constant() {
+    let parser = constant(300);
+    assert_eq!(Ok(("doesn't matter", 300)), parser.parse("doesn't matter"));
+}
 
-    let assignment_statement = ID.clone()
-        .bind(Rc::new(closure!(clone ASSIGN, clone SEMI_COLON, clone expression, |name: String| -> Parser<AST> {
-            ASSIGN.clone().and_drop_left(expression.clone())
-            .bind(Rc::new(closure!(clone SEMI_COLON, clone name, |value: AST| -> Parser<AST> {
-                SEMI_COLON.clone().and_drop_left(constant(AST::Assignment { 
-                    span: Span::new_dud(), 
-                    name: name.clone(), 
-                    value: Box::new(value.clone()) 
-                }))
-            })))
-    })));
+#[allow(dead_code)]
+pub fn number_i64(input: &str) -> ParseResult<i64> {
+    match match_regex("[0-9]+").parse(input) {
+        Ok((new_input, num_str)) => match num_str.parse::<i64>() {
+            Ok(num) => Ok((new_input, num)),
+            Err(_) => Err(input),
+        },
+        Err(err) => Err(err),
+    }
+}
 
-    let block_statement = LEFT_BRACE.clone()
-        .and_drop_left(zero_or_more(statement.clone())
-        .bind(Rc::new(closure!(clone RIGHT_BRACE, |stmts: Vec<AST>| -> Parser<AST> {
-            RIGHT_BRACE.clone().and_drop_left(constant(AST::Block { 
-                statements: stmts, 
-                span: Span::new_dud() }))
-        }))));
+#[test]
+fn test_number_i64() {
+    assert_eq!(Ok(("", 42)), number_i64("42"));
+}
 
-    let parameters = ID
-        .clone()
-        .bind(Rc::new(closure!(clone ID, clone COMMA, |arg| {
-            zero_or_more(COMMA.clone().and_drop_left(ID.clone()))
-                .bind(Rc::new(move |args| {
-                    constant([vec![arg.clone()], args].concat())
-                }))
-                .or(constant(vec![]))
-        })));
+#[allow(dead_code)]
+pub fn maybe<'a, P, R>(parser: P) -> impl Parser<'a, R>
+where
+    P: Parser<'a, R>,
+    R: Clone + 'a,
+{
+    move |input: &'a str| match parser.parse(input) {
+        Ok((new_input, res)) => Ok((new_input, res)),
+        Err(_) => Err(input),
+    }
+}
 
-    let function_def = FN.clone().and_drop_left(ID.clone())
-        .bind(Rc::new(closure!(clone LEFT_PAREN, clone RIGHT_PAREN, clone block_statement, clone parameters,
-            |fn_name: String| -> Parser<AST> {
-                LEFT_PAREN.clone().and_drop_left(parameters.clone())
-                .bind(Rc::new(closure!(clone RIGHT_PAREN, clone block_statement, clone fn_name,
-                    |params: Vec<String>| -> Parser<AST> {
-                        RIGHT_PAREN.clone().and_drop_left(block_statement.clone())
-                        .bind(Rc::new(closure!(clone params, clone fn_name, |block: AST| -> Parser<AST> {
-                            constant(AST::FunctionDef { 
-                                span: Span::new_dud(), 
-                                name: fn_name.clone(), 
-                                params: params.clone(), 
-                                body: Box::new(block), 
-                            })
-                        })))
-                    }
-                )))
+#[test]
+fn test_maybe() {
+    let parser = maybe(match_regex("[0-9]+"));
+    assert_eq!(parser.parse("1234"), Ok(("", "1234".into())));
+    assert_eq!(parser.parse("abcd"), Err("abcd"));
+}
+
+#[allow(dead_code)]
+pub fn zero_or_more<'a, P, A>(parser: P) -> impl Parser<'a, Vec<A>>
+where
+    P: Parser<'a, A>,
+{
+    move |mut input| {
+        let mut results = vec![];
+
+        while let Ok((next_input, item)) = parser.parse(input) {
+            input = next_input;
+            results.push(item);
+        }
+
+        Ok((input, results))
+    }
+}
+
+#[allow(dead_code)]
+pub fn one_or_more<'a, P, A>(parser: P) -> impl Parser<'a, Vec<A>>
+where
+    P: Parser<'a, A>,
+{
+    move |mut input| {
+        let mut results = vec![];
+
+        if let Ok((next_input, head)) = parser.parse(input) {
+            input = next_input;
+            results.push(head);
+        } else {
+            return Err(input);
+        }
+
+        while let Ok((next_input, item)) = parser.parse(input) {
+            input = next_input;
+            results.push(item);
+        }
+
+        Ok((input, results))
+    }
+}
+
+#[test]
+fn test_zero_or_more() {
+    let parser = zero_or_more(match_regex("ha"));
+    assert_eq!(
+        Ok(("", vec!["ha".into(), "ha".into(), "ha".into(), "ha".into()])),
+        parser.parse("hahahaha")
+    );
+
+    assert_eq!(Ok(("ahah", vec![])), parser.parse("ahah"));
+    assert_eq!(Ok(("", vec![])), parser.parse(""));
+}
+
+#[test]
+fn test_one_or_more() {
+    let parser = one_or_more(match_regex("ha"));
+    assert_eq!(
+        Ok(("", vec!["ha".into(), "ha".into(), "ha".into(), "ha".into()])),
+        parser.parse("hahahaha")
+    );
+
+    assert_eq!(Err("ahah"), parser.parse("ahah"));
+    assert_eq!(Err(""), parser.parse(""));
+}
+
+#[allow(dead_code)]
+pub fn any_char(input: &str) -> ParseResult<char> {
+    match input.chars().next() {
+        Some(next) => Ok((&input[next.len_utf8()..], next)),
+        None => Err(input),
+    }
+}
+
+#[allow(dead_code)]
+pub fn pred<'a, P, A, F>(parser: P, predicate: F) -> impl Parser<'a, A>
+where
+    P: Parser<'a, A>,
+    F: Fn(&A) -> bool,
+{
+    move |input| {
+        if let Ok((next_input, res)) = parser.parse(input) {
+            if predicate(&res) {
+                return Ok((next_input, res));
             }
-        )));
+        }
+        Err(input)
+    }
+}
+
+#[test]
+fn test_predicate() {
+    let parser = pred(any_char, |c| *c == 'o');
+    assert_eq!(Ok(("mg", 'o')), parser.parse("omg"));
+    assert_eq!(Err("lol"), parser.parse("lol"));
+}
+
+#[allow(dead_code)]
+pub fn whitespace_char<'a>() -> impl Parser<'a, char> {
+    any_char.pred(|c| c.is_whitespace())
+}
+
+#[allow(dead_code)]
+pub fn space0<'a>() -> impl Parser<'a, Vec<char>> {
+    zero_or_more(whitespace_char())
+}
+
+#[allow(dead_code)]
+pub fn space1<'a>() -> impl Parser<'a, Vec<char>> {
+    one_or_more(whitespace_char())
+}
+
+#[allow(dead_code)]
+pub fn either<'a, P1, P2, A>(parser1: P1, parser2: P2) -> impl Parser<'a, A>
+where
+    P1: Parser<'a, A>,
+    P2: Parser<'a, A>,
+{
+    move |input| match parser1.parse(input) {
+        ok @ Ok(_) => ok,
+        Err(_) => parser2.parse(input),
+    }
+}
+
+#[test]
+fn test_either() {
+    let num = match_regex(r"[0-9]{3}");
+    assert_eq!(either(num, identifier).parse("abc"), Ok(("", "abc".into())))
+}
+
+#[allow(dead_code)]
+pub fn or<'a, P1, P2, R>(parser1: P1, parser2: P2) -> impl Parser<'a, R>
+where
+    P1: Parser<'a, R>,
+    P2: Parser<'a, R>,
+{
+    move |input| match parser1.parse(input) {
+        Ok((new_input, res)) => Ok((new_input, res)),
+        Err(_) => parser2.parse(input),
+    }
+}
+
+#[test]
+fn test_or() {
+    let parser = match_regex("[0-9]+").or(identifier);
+    assert_eq!(parser.parse("12345"), Ok(("", "12345".into())));
+    assert_eq!(
+        parser.parse("identifier_135"),
+        Ok(("35", "identifier_1".into()))
+    );
+    assert_eq!(parser.parse("!23 identifier"), Err("!23 identifier"));
+}
+
+#[allow(dead_code)]
+pub fn and_drop<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, R2>
+where
+    P1: Parser<'a, R1>,
+    P2: Parser<'a, R2>,
+{
+    move |input| match parser1.parse(input) {
+        Ok((new_input, _)) => parser2.parse(new_input),
+        Err(_) => Err(input),
+    }
+}
+
+#[test]
+fn test_and_drop() {
+    let parser =
+        literal("joshua").and_drop(any_char.pred(|c| c.is_whitespace()).and_drop(identifier));
+
+    assert_eq!(parser.parse("joshua pepple"), Ok(("", "pepple".into())))
+}
+
+#[allow(dead_code)]
+pub fn and_tuple<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, (R1, R2)>
+where
+    P1: Parser<'a, R1>,
+    P2: Parser<'a, R2>,
+{
+    move |input| match parser1.parse(input) {
+        Ok((new_input, res)) => match parser2.parse(new_input) {
+            Ok((final_input, res2)) => Ok((final_input, (res, res2))),
+            Err(_) => Err(input),
+        },
+        Err(_) => Err(input),
+    }
+}
+
+#[test]
+fn test_and_tuple() {
+    let parser = number_i64.and_tuple(identifier);
+    assert_eq!(parser.parse("420Pepple"), Ok(("", (420, "Pepple".into()))))
+}
+
+#[allow(dead_code)]
+pub fn and_then<'a, P, F, A, B, NextParser>(parser: P, f: F) -> impl Parser<'a, B>
+where
+    P: Parser<'a, A>,
+    NextParser: Parser<'a, B>,
+    F: Fn(A) -> NextParser,
+{
+    move |input| match parser.parse(input) {
+        Ok((next_input, parsed)) => f(parsed).parse(next_input),
+        Err(err) => Err(err),
+    }
+}
+
+#[allow(dead_code)]
+pub fn whitespace_wrap<'a, P, A>(parser: P) -> impl Parser<'a, A>
+where
+    P: Parser<'a, A>,
+{
+    right(space0(), left(parser, space0()))
 }
