@@ -30,15 +30,55 @@ fn test_id() {
 
 #[allow(dead_code)]
 fn expression(_input: &str) -> ParseResult<AST> {
-    todo!()
+    id.parse(_input)
 }
 
-// #[allow(dead_code)]
-// fn args<'a>(input: &str) -> ParseResult<Vec<AST>> {
-//     expression
-//         .and_then(|arg| zero_or_more(literal(",").and))
-//         .parse(input)
-// }
+#[allow(dead_code)]
+fn ignored(input: &str) -> ParseResult<()> {
+    let whitespace = match_regex(r"[ \n\r\t]+");
+    let comments = match_regex(r"[/][/].*").or(match_regex(r"(?s)[/][*].*[*][/]"));
+    zero_or_more(whitespace.or(comments))
+        .map(|_| ())
+        .parse(input)
+}
+
+#[allow(dead_code)]
+fn args(input: &str) -> ParseResult<Vec<AST>> {
+    expression
+        .and_then(|arg| {
+            zero_or_more(literal(",").and_right(ignored).and_right(expression))
+                .and_then(move |args| constant(vec![vec![arg.clone()], args].concat()))
+        })
+        .or(constant(vec![]))
+        .parse(input)
+}
+
+#[test]
+fn test_args() {
+    assert_eq!(
+        args("a, b, c"),
+        Ok((
+            "",
+            vec![
+                AST::Identifier {
+                    name: "a".into(),
+                    span: Span::new_dud()
+                },
+                AST::Identifier {
+                    name: "b".into(),
+                    span: Span::new_dud()
+                },
+                AST::Identifier {
+                    name: "c".into(),
+                    span: Span::new_dud()
+                }
+            ],
+        ))
+    );
+    assert_eq!(args(""), Ok(("", vec![],)))
+}
+
+
 
 #[allow(dead_code, unused_variables, non_snake_case)]
 pub fn parse(input: &str) {}

@@ -44,14 +44,14 @@ pub trait Parser<'a, Output> {
         BoxedParser::new(or(self, parser2))
     }
 
-    fn and_drop<P, NewOutput>(self, parser2: P) -> BoxedParser<'a, NewOutput>
+    fn and_right<P, NewOutput>(self, parser2: P) -> BoxedParser<'a, NewOutput>
     where
         Self: Sized + 'a,
         Output: 'a,
         NewOutput: 'a,
         P: Parser<'a, NewOutput> + 'a,
     {
-        BoxedParser::new(and_drop(self, parser2))
+        BoxedParser::new(and_right(self, parser2))
     }
 
     fn and_tuple<P, NewOutput>(self, parser2: P) -> BoxedParser<'a, (Output, NewOutput)>
@@ -458,7 +458,7 @@ fn test_or() {
 }
 
 #[allow(dead_code)]
-pub fn and_drop<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, R2>
+pub fn and_right<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, R2>
 where
     P1: Parser<'a, R1>,
     P2: Parser<'a, R2>,
@@ -470,9 +470,9 @@ where
 }
 
 #[test]
-fn test_and_drop() {
+fn test_and_right() {
     let parser =
-        literal("joshua").and_drop(any_char.pred(|c| c.is_whitespace()).and_drop(identifier));
+        literal("joshua").and_right(any_char.pred(|c| c.is_whitespace()).and_right(identifier));
 
     assert_eq!(parser.parse("joshua pepple"), Ok(("", "pepple".into())))
 }
