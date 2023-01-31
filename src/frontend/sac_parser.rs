@@ -791,5 +791,38 @@ fn test_var_s() {
     );
 }
 
+#[allow(dead_code)]
+fn assign_s(input: &str) -> ParseResult<AST> {
+    sidentifier
+        .and_then(|var_name| {
+            sliteral("=").and_right(expression).and_then(move |val| {
+                sliteral("[;]").and_right(constant(AST::Assignment {
+                    span: Span::new_dud(),
+                    name: var_name.clone(),
+                    value: Box::new(val),
+                }))
+            })
+        })
+        .parse(input)
+}
+
+#[test]
+fn test_assign_s() {
+    assert_eq!(
+        assign_s("a = 300;"),
+        Ok((
+            "",
+            AST::Assignment {
+                span: Span::new_dud(),
+                name: "a".into(),
+                value: Box::new(AST::Number {
+                    num: 300,
+                    span: Span::new_dud()
+                })
+            }
+        ))
+    )
+}
+
 #[allow(dead_code, unused_variables, non_snake_case)]
 pub fn parse(input: &str) {}
