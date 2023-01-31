@@ -29,8 +29,8 @@ fn test_id() {
 }
 
 #[allow(dead_code)]
-fn expression(_input: &str) -> ParseResult<AST> {
-    atom(_input)
+fn expression(input: &str) -> ParseResult<AST> {
+    comparison(input)
 }
 
 #[allow(dead_code)]
@@ -239,7 +239,7 @@ fn product(input: &str) -> ParseResult<AST> {
                 sliteral("[*]")
                     .or(sliteral("[/]"))
                     .and_then(move |operator| {
-                        unary.and_then(move |rhs| constant((operator.clone(), rhs.clone())))
+                        unary.and_then(move |rhs| constant((operator.clone(), rhs)))
                     }),
             )
             .map(move |ops_and_terms| {
@@ -310,7 +310,7 @@ fn sum(input: &str) -> ParseResult<AST> {
                 sliteral("[+]")
                     .or(sliteral("[-]"))
                     .and_then(move |operator| {
-                        product.and_then(move |rhs| constant((operator.clone(), rhs.clone())))
+                        product.and_then(move |rhs| constant((operator.clone(), rhs)))
                     }),
             )
             .map(move |ops_and_terms| {
@@ -394,7 +394,139 @@ fn test_sum() {
         ))
     );
     assert_eq!(
-        sum("1     *    3 /   4 + 5"),
+        sum("a     *    3 /   4 + 5"),
+        Ok((
+            "",
+            AST::Add {
+                lhs: Box::new(AST::Divide {
+                    lhs: Box::new(AST::Multiply {
+                        lhs: Box::new(AST::Identifier {
+                            name: "a".into(),
+                            span: Span::new_dud(),
+                        }),
+                        rhs: Box::new(AST::Number {
+                            num: 3,
+                            span: Span::new_dud()
+                        })
+                    }),
+                    rhs: Box::new(AST::Number {
+                        num: 4,
+                        span: Span::new_dud()
+                    })
+                }),
+                rhs: Box::new(AST::Number {
+                    num: 5,
+                    span: Span::new_dud()
+                })
+            }
+        ))
+    );
+}
+
+#[allow(dead_code)]
+fn comparison(input: &str) -> ParseResult<AST> {
+    sum.and_then(move |left| {
+        zero_or_more(sliteral("==").or(sliteral("!=")).and_then(move |operator| {
+            sum.and_then(move |right| constant((operator.clone(), right)))
+        }))
+        .map(move |ops_and_terms| {
+            ops_and_terms
+                .into_iter()
+                .fold(left.clone(), |lhs, (operator, rhs)| {
+                    match operator.as_ref() {
+                        "==" => AST::Equals {
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                        },
+                        "!=" => AST::NEquals {
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                        },
+                        &_ => AST::Error {
+                            span: Span::new_dud(),
+                            msg: input.into(),
+                        },
+                    }
+                })
+        })
+    })
+    .parse(input)
+}
+
+#[test]
+fn test_comparison() {
+    assert_eq!(
+        comparison("1"),
+        Ok((
+            "",
+            AST::Number {
+                num: 1,
+                span: Span::new_dud()
+            }
+        ))
+    );
+    assert_eq!(
+        comparison("1     *    3 /   4"),
+        Ok((
+            "",
+            AST::Divide {
+                lhs: Box::new(AST::Multiply {
+                    lhs: Box::new(AST::Number {
+                        num: 1,
+                        span: Span::new_dud()
+                    }),
+                    rhs: Box::new(AST::Number {
+                        num: 3,
+                        span: Span::new_dud()
+                    })
+                }),
+                rhs: Box::new(AST::Number {
+                    num: 4,
+                    span: Span::new_dud()
+                })
+            }
+        ))
+    );
+    assert_eq!(
+        comparison("1 != 2"),
+        Ok((
+            "",
+            AST::NEquals {
+                lhs: Box::new(AST::Number {
+                    num: 1,
+                    span: Span::new_dud()
+                }),
+                rhs: Box::new(AST::Number {
+                    num: 2,
+                    span: Span::new_dud()
+                })
+            }
+        ))
+    );
+    assert_eq!(
+        comparison("1     +    3 -   4"),
+        Ok((
+            "",
+            AST::Subtract {
+                lhs: Box::new(AST::Add {
+                    lhs: Box::new(AST::Number {
+                        num: 1,
+                        span: Span::new_dud()
+                    }),
+                    rhs: Box::new(AST::Number {
+                        num: 3,
+                        span: Span::new_dud()
+                    })
+                }),
+                rhs: Box::new(AST::Number {
+                    num: 4,
+                    span: Span::new_dud()
+                })
+            }
+        ))
+    );
+    assert_eq!(
+        comparison("1     *    3 /   4 + 5"),
         Ok((
             "",
             AST::Add {
