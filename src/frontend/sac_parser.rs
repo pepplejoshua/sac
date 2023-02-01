@@ -946,7 +946,20 @@ fn test_fn_s() {
                 })
             }
         ))
-    )
+    );
+
+    assert_eq!(
+        fn_s(":main { }"),
+        Ok((
+            "",
+            AST::Main {
+                stmts: Box::new(AST::Block {
+                    statements: vec![],
+                    span: Span::new_dud()
+                })
+            }
+        ))
+    );
 }
 
 #[allow(dead_code)]
