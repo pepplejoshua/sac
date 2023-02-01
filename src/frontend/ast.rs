@@ -1,8 +1,5 @@
 use super::span::Span;
-
-fn emit(asm: &str) {
-    println!("{asm}")
-}
+use crate::codegen::builder::Builder;
 
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -339,31 +336,31 @@ impl AST {
         }
     }
 
-    pub fn emit_arm32(&self) {
+    pub fn emit_arm32(&self, b: &mut Builder) {
         match self {
             AST::Main { stmts } => {
-                emit(".global main");
-                emit("main:");
-                emit("  push {fp, lr}");
-                stmts.emit_arm32();
-                emit("  mov r0, #0");
-                emit("  pop {fp, pc}");
+                b.add(".global main");
+                b.add("main:");
+                b.add("  push {fp, lr}");
+                stmts.emit_arm32(b);
+                b.add("  mov r0, #0");
+                b.add("  pop {fp, pc}");
             }
             AST::Block {
                 statements,
                 span: _,
             } => statements.iter().for_each(|stmt| {
-                stmt.emit_arm32();
+                stmt.emit_arm32(b);
             }),
             AST::Assert { cond } => {
-                cond.emit_arm32();
-                emit("  cmp r0, #1");
-                emit("  moveq r0, #'.'");
-                emit("  movne r0, #'F'");
-                emit("  bl putchar");
+                cond.emit_arm32(b);
+                b.add("  cmp r0, #1");
+                b.add("  moveq r0, #'.'");
+                b.add("  movne r0, #'F'");
+                b.add("  bl putchar");
             }
-            AST::Number { num, span: _ } => emit(format!("  ldr r0, ={num}").as_str()),
-            _ => emit("unimplemented"),
+            AST::Number { num, span: _ } => b.add(format!("  ldr r0, ={num}").as_str()),
+            _ => b.add("unimplemented"),
         }
     }
 }
