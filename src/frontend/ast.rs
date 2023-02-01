@@ -1,5 +1,9 @@
 use super::span::Span;
 
+fn emit(asm: &str) {
+    println!("{asm}")
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AST {
@@ -82,6 +86,12 @@ pub enum AST {
     Error {
         span: Span,
         msg: String,
+    },
+    Assert {
+        cond: Box<AST>,
+    },
+    Main {
+        stmts: Box<AST>,
     },
 }
 
@@ -266,6 +276,8 @@ impl AST {
                     body: obody,
                 },
             ) => condition.equals(ocondition) && body.equals(obody),
+            (AST::Main { stmts }, AST::Main { stmts: ostmts }) => stmts.equals(ostmts),
+            (AST::Assert { cond }, AST::Assert { cond: ocond }) => cond.equals(ocond),
             _ => false,
         }
     }
@@ -322,6 +334,12 @@ impl AST {
                 body: _,
             } => span.clone(),
             AST::Error { span, msg: _ } => span.clone(),
+            AST::Assert { cond: _ } => Span::new_dud(),
+            AST::Main { stmts: _ } => Span::new_dud(),
         }
+    }
+
+    pub fn emit_arm32(&self) {
+        todo!()
     }
 }
