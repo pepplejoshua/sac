@@ -1,19 +1,19 @@
 .data
   hello:
-    .string "Hello, from assembly!\n"
+    .string "Hello, from assembly! I am %d years old\n"
     .balign
-
+  
 .text
   .global main
   main:
-    push {ip, lr}
+    push {fp, lr}
 
     ldr r0, =hello
+    mov r1, #23
     bl printf
 
-    mov r0, #41
-    add r0, r0, #1 // increment
+    mov r0, #0
 
-    pop {ip, lr}
+    pop {fp, pc}
     bx lr
     

@@ -8,7 +8,7 @@ fn emit(asm: &str) {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AST {
     Number {
-        num: i64,
+        num: i32,
         span: Span,
     },
     Identifier {
@@ -340,6 +340,30 @@ impl AST {
     }
 
     pub fn emit_arm32(&self) {
-        todo!()
+        match self {
+            AST::Main { stmts } => {
+                emit(".global main");
+                emit("main:");
+                emit("  push {fp, lr}");
+                stmts.emit_arm32();
+                emit("  mov r0, #0");
+                emit("  pop {fp, pc}");
+            }
+            AST::Block {
+                statements,
+                span: _,
+            } => statements.iter().for_each(|stmt| {
+                stmt.emit_arm32();
+            }),
+            AST::Assert { cond } => {
+                cond.emit_arm32();
+                emit("  cmp r0, #1");
+                emit("  moveq r0, #'.'");
+                emit("  movne r0, #'F'");
+                emit("  bl putchar");
+            }
+            AST::Number { num, span: _ } => emit(format!("  ldr r0, ={num}").as_str()),
+            _ => emit("unimplemented"),
+        }
     }
 }

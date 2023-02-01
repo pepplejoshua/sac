@@ -271,9 +271,9 @@ fn test_constant() {
 }
 
 #[allow(dead_code)]
-pub fn number_i64(input: &str) -> ParseResult<i64> {
+pub fn number_i32(input: &str) -> ParseResult<i32> {
     match match_regex("[0-9]+").parse(input) {
-        Ok((new_input, num_str)) => match num_str.parse::<i64>() {
+        Ok((new_input, num_str)) => match num_str.parse::<i32>() {
             Ok(num) => Ok((new_input, num)),
             Err(_) => Err(input),
         },
@@ -282,8 +282,8 @@ pub fn number_i64(input: &str) -> ParseResult<i64> {
 }
 
 #[test]
-fn test_number_i64() {
-    assert_eq!(Ok(("", 42)), number_i64("42"));
+fn test_number_i32() {
+    assert_eq!(Ok(("", 42)), number_i32("42"));
 }
 
 #[allow(dead_code)]

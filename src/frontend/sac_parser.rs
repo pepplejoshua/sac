@@ -140,7 +140,7 @@ fn test_call() {
 
 #[allow(dead_code)]
 fn number(input: &str) -> ParseResult<AST> {
-    number_i64
+    number_i32
         .map(|num| AST::Number {
             num,
             span: Span::new_dud(),
