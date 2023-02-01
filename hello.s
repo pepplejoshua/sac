@@ -1,6 +1,7 @@
 .data
   hello:
-    .string "Hello, assembly!\n"
+    .string "Hello, from assembly!\n"
+    .balign
 
 .text
   .global main
