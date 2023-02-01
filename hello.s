@@ -1,6 +1,6 @@
 .data
   hello:
-    .string "Hello, assembly!"
+    .string "Hello, assembly!\n"
 
 .text
   .global main
