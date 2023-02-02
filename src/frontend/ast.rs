@@ -1,29 +1,5 @@
 use super::span::Span;
-use crate::codegen::builder::Builder;
-
-#[allow(dead_code)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct Label {
-    value: i32,
-}
-
-static mut LABEL_COUNTER: i32 = 0;
-#[allow(dead_code)]
-impl Label {
-    fn n() -> Self {
-        let label = Label {
-            value: unsafe { LABEL_COUNTER },
-        };
-        unsafe {
-            LABEL_COUNTER += 1;
-        }
-        label
-    }
-
-    fn s(&self) -> String {
-        format!(".SacLabel{}", self.value)
-    }
-}
+use crate::codegen::builder::{Builder, Label};
 
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,6 +7,9 @@ pub enum AST {
     Number {
         num: i32,
         span: Span,
+    },
+    StrLiteral {
+        literal: String,
     },
     Identifier {
         name: String,
@@ -347,6 +326,7 @@ impl AST {
                 body: _,
             } => span.clone(),
             AST::Error { span, msg: _ } => span.clone(),
+            AST::StrLiteral { literal: _ } => Span::new_dud(),
         }
     }
 
@@ -428,7 +408,10 @@ impl AST {
                         arg.emit_arm32(b);
                         b.add(&format!("  str r0, [sp, #{}]", i * 4));
                     }
-                    b.add("  pop {r0, r1, r2, r3}");
+                    let regs_list = vec!["r0", "r0, r1", "r0, r1, r2", "r0, r1, r2, r3"];
+                    let regs = regs_list[len - 1];
+
+                    b.add(&format!("  pop {{{regs}}}"));
                     b.add(&format!("  bl {called}"));
                 }
                 _ => {
@@ -504,6 +487,16 @@ impl AST {
                 } else {
                     panic!("undefined variable: `{name}` :(");
                 }
+            }
+            AST::Return { value, span: _ } => {
+                value.emit_arm32(b);
+                b.add("  mov sp, fp");
+                b.add("  pop {fp, pc}");
+            }
+            AST::StrLiteral { literal } => {
+                // intern string and get label to assign to r0
+                let label = b.add_interned_str(literal.clone());
+                b.add(&format!("  ldr r0, ={}", label.s()));
             }
             _ => panic!("unimplemented :("),
         }

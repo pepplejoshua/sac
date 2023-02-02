@@ -2,6 +2,36 @@ use std::{collections::HashMap, ffi::OsStr, fs, path::Path};
 
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Label {
+    tag: String,
+    value: i32,
+}
+
+static mut LABEL_COUNTER: i32 = 0;
+#[allow(dead_code)]
+impl Label {
+    pub fn n() -> Self {
+        let label = Label {
+            value: unsafe { LABEL_COUNTER },
+            tag: String::new(),
+        };
+        unsafe {
+            LABEL_COUNTER += 1;
+        }
+        label
+    }
+
+    pub fn nn(value: i32, tag: String) -> Self {
+        Label { value, tag }
+    }
+
+    pub fn s(&self) -> String {
+        format!(".SacLabel{}{}", self.tag, self.value)
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 
 pub struct Context {
     locals: HashMap<String, i32>,
@@ -41,6 +71,7 @@ pub struct Builder {
     src: String,
     lines: Vec<String>,
     context: Context,
+    interned_strings: Vec<(String, Label)>,
 }
 
 impl Builder {
@@ -49,6 +80,7 @@ impl Builder {
             src,
             lines: vec![],
             context: Context::n(),
+            interned_strings: vec![],
         }
     }
 
@@ -56,8 +88,33 @@ impl Builder {
         self.lines.push(line.into());
     }
 
-    pub fn write_out(&self) {
-        let asm = self.lines.join("\n") + "\n";
+    pub fn add_at(&mut self, line: &str, loc: usize) {
+        self.lines.insert(loc, line.into());
+    }
+
+    pub fn write_out(&mut self) {
+        if !self.interned_strings.is_empty() {
+            self.add_at("", 0);
+            for (istr, label) in self.interned_strings.clone().iter() {
+                // generates:
+                // label:
+                //   .string "string contents"
+                //   .balign
+                self.add_at(
+                    &format!(
+                        r#"
+{}:
+  .string "{}"
+  .balign 4"#,
+                        label.s(),
+                        istr,
+                    ),
+                    0,
+                );
+            }
+        }
+        let mut asm = self.lines.join("\n").trim_start().to_string();
+        asm += "\n";
         let output = Path::new(&self.src)
             .file_stem()
             .and_then(OsStr::to_str)
@@ -93,5 +150,17 @@ impl Builder {
 
     pub fn try_get(&self, local: &String) -> Option<&i32> {
         self.context.get(local)
+    }
+
+    pub fn add_interned_str(&mut self, istr: String) -> Label {
+        for (e_istr, ilabel) in &self.interned_strings {
+            if e_istr == &istr {
+                return ilabel.clone();
+            }
+        }
+        let index = self.interned_strings.len() as i32;
+        let label = Label::nn(index, "Interned".into());
+        self.interned_strings.push((istr, label.clone()));
+        label
     }
 }
