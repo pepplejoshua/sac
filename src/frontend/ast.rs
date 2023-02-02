@@ -358,12 +358,21 @@ impl AST {
                 b.add("  moveq r0, #'.'");
                 b.add("  movne r0, #'F'");
                 b.add("  bl putchar");
+                b.add("  mov r0, #'\\n'");
+                b.add("  bl putchar");
             }
             AST::Not { target, span: _ } => {
                 target.emit_arm32(b);
                 b.add("  cmp r0, #0");
                 b.add("  moveq r0, #1");
                 b.add("  movne r0, #0");
+            }
+            AST::Add { lhs, rhs } => {
+                lhs.emit_arm32(b);
+                b.add("  push {r0, ip}");
+                rhs.emit_arm32(b);
+                b.add("  pop {r1, ip}");
+                b.add("  add r0, r0, r1");
             }
             AST::Number { num, span: _ } => b.add(format!("  ldr r0, ={num}").as_str()),
             _ => b.add("unimplemented"),
