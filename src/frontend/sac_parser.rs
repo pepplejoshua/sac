@@ -149,10 +149,39 @@ fn number(input: &str) -> ParseResult<AST> {
 }
 
 #[allow(dead_code)]
+fn chr(input: &str) -> ParseResult<AST> {
+    sliteral("[']")
+        .and_right(any_char)
+        .and_then(|character| {
+            sliteral("[']").and_then(move |_| {
+                constant(AST::Number {
+                    num: character as i32,
+                    span: Span::new_dud(),
+                })
+            })
+        })
+        .parse(input)
+}
+
+#[test]
+fn test_chr() {
+    assert_eq!(
+        chr("'A'"),
+        Ok((
+            "",
+            AST::Number {
+                num: 65,
+                span: Span::new_dud()
+            }
+        ))
+    )
+}
+
+#[allow(dead_code)]
 fn atom(input: &str) -> ParseResult<AST> {
     ignored
         .and_right(
-            call.or(id).or(number).or(sliteral("[(]")
+            call.or(id).or(number).or(chr).or(sliteral("[(]")
                 .and_right(expression)
                 .and_then(|expr| sliteral("[)]").and_right(constant(expr)))),
         )
