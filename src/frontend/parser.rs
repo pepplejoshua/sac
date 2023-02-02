@@ -54,6 +54,16 @@ pub trait Parser<'a, Output> {
         BoxedParser::new(and_right(self, parser2))
     }
 
+    fn and_left<P, NewOutput>(self, parser2: P) -> BoxedParser<'a, Output>
+    where
+        Self: Sized + 'a,
+        Output: 'a,
+        NewOutput: 'a,
+        P: Parser<'a, NewOutput> + 'a,
+    {
+        BoxedParser::new(and_left(self, parser2))
+    }
+
     fn and_tuple<P, NewOutput>(self, parser2: P) -> BoxedParser<'a, (Output, NewOutput)>
     where
         Self: Sized + 'a,
@@ -465,6 +475,24 @@ where
 {
     move |input| match parser1.parse(input) {
         Ok((new_input, _)) => parser2.parse(new_input),
+        Err(_) => Err(input),
+    }
+}
+
+#[allow(dead_code)]
+pub fn and_left<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, R1>
+where
+    P1: Parser<'a, R1>,
+    P2: Parser<'a, R2>,
+{
+    move |input| match parser1.parse(input) {
+        Ok((new_input, res)) => {
+            if let Ok((final_input, _)) = parser2.parse(new_input) {
+                Ok((final_input, res))
+            } else {
+                Err(new_input)
+            }
+        }
         Err(_) => Err(input),
     }
 }

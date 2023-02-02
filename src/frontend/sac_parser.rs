@@ -136,6 +136,20 @@ fn test_call() {
             }
         ))
     );
+
+    assert_eq!(
+        call("printf(\"Hello, World!\")"),
+        Ok((
+            "",
+            AST::Call {
+                called: "printf".into(),
+                args: vec![AST::StrLiteral {
+                    literal: "Hello, World!".into(),
+                }],
+                span: Span::new_dud()
+            }
+        ))
+    );
 }
 
 #[allow(dead_code)]
@@ -146,6 +160,29 @@ fn number(input: &str) -> ParseResult<AST> {
             span: Span::new_dud(),
         })
         .parse(input)
+}
+
+#[allow(dead_code)]
+fn sac_str(input: &str) -> ParseResult<AST> {
+    sliteral("\"")
+        .and_right(zero_or_more(any_char.pred(|c| *c != '"')).and_left(sliteral("\"")))
+        .map(|chars| AST::StrLiteral {
+            literal: chars.into_iter().collect(),
+        })
+        .parse(input)
+}
+
+#[test]
+fn test_sac_str() {
+    assert_eq!(
+        Ok((
+            "",
+            AST::StrLiteral {
+                literal: "Hello, World!".into()
+            }
+        )),
+        sac_str("\"Hello, World!\"")
+    )
 }
 
 #[allow(dead_code)]
@@ -181,9 +218,13 @@ fn test_chr() {
 fn atom(input: &str) -> ParseResult<AST> {
     ignored
         .and_right(
-            call.or(id).or(number).or(chr).or(sliteral("[(]")
-                .and_right(expression)
-                .and_then(|expr| sliteral("[)]").and_right(constant(expr)))),
+            call.or(id)
+                .or(number)
+                .or(chr)
+                .or(sac_str)
+                .or(sliteral("[(]")
+                    .and_right(expression)
+                    .and_then(|expr| sliteral("[)]").and_right(constant(expr)))),
         )
         .parse(input)
 }
