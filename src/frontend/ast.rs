@@ -3,6 +3,28 @@ use crate::codegen::builder::Builder;
 
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq)]
+struct Label {
+    value: i32,
+}
+
+static mut LABEL_COUNTER: i32 = 0;
+#[allow(dead_code)]
+impl Label {
+    unsafe fn n() -> Self {
+        let label = Label {
+            value: LABEL_COUNTER,
+        };
+        LABEL_COUNTER += 1;
+        label
+    }
+
+    fn s(&self) -> String {
+        format!(".L{}", self.value)
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AST {
     Number {
         num: i32,
@@ -438,6 +460,23 @@ impl AST {
                     panic!("More than 4 arguments is not supported :(");
                 }
             },
+            AST::IfCond {
+                span: _,
+                condition,
+                then,
+                c_else,
+            } => {
+                let if_false_label = unsafe { Label::n() };
+                let end_if_label = unsafe { Label::n() };
+                condition.emit_arm32(b);
+                b.add("  cmp r0, #0");
+                b.add(&format!("  beq {}", if_false_label.s()));
+                then.emit_arm32(b);
+                b.add(&format!("  b {}", end_if_label.s()));
+                b.add(&format!("{}:", if_false_label.s()));
+                c_else.emit_arm32(b);
+                b.add(&format!("{}:", end_if_label.s()));
+            }
             _ => panic!("unimplemented :("),
         }
     }
