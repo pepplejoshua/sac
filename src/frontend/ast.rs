@@ -359,6 +359,12 @@ impl AST {
                 b.add("  movne r0, #'F'");
                 b.add("  bl putchar");
             }
+            AST::Not { target, span: _ } => {
+                target.emit_arm32(b);
+                b.add("  cmp r0, #0");
+                b.add("  moveq r0, #1");
+                b.add("  movne r0, #0");
+            }
             AST::Number { num, span: _ } => b.add(format!("  ldr r0, ={num}").as_str()),
             _ => b.add("unimplemented"),
         }

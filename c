@@ -2,7 +2,7 @@
 
 if [ $# -eq 0 ]
 then
-  echo "need arm asm file to compile..."
+  echo "need sac file to compile..."
 elif [ $# -eq 1 ]
 then
   cargo build --release --quiet
@@ -12,5 +12,5 @@ then
   echo
   rm $1
 else 
-  echo "need 1 arm asm file to compile... got $#";
+  echo "need 1 sac file to compile... got $#";
 fi
