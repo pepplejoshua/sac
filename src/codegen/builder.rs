@@ -73,7 +73,8 @@ impl Builder {
 
     pub fn set_up_env(&mut self, locals: &[String]) {
         for (i, local) in locals.iter().enumerate() {
-            self.context.set(local.clone(), (4 * i - 16) as i32);
+            self.context
+                .set(local.clone(), (4 * i - (locals.len() * 4)) as i32);
         }
     }
 

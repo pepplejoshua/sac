@@ -21,7 +21,7 @@ impl Label {
     }
 
     fn s(&self) -> String {
-        format!(".L{}", self.value)
+        format!(".SacLabel{}", self.value)
     }
 }
 
@@ -469,20 +469,17 @@ impl AST {
                 b.add("  push {fp, lr}");
                 b.add("  mov fp, sp");
 
-                b.enter_ctx();
-                b.set_up_env(params);
-
                 // push the right number of registers onto the stack
                 // that will serve as parameters in the function body
                 match params.len() {
                     1 => {
-                        b.add("  push {r0, fp}"); // use fp to pad to 8 bytes
+                        b.add("  push {r0}"); // use fp to pad to 8 bytes
                     }
                     2 => {
                         b.add("  push {r0, r1}");
                     }
                     3 => {
-                        b.add("  push {r0, r1, r2, fp}"); // use fp to pad to 8 bytes
+                        b.add("  push {r0, r1, r2}"); // use fp to pad to 8 bytes
                     }
                     4 => {
                         b.add("  push {r0, r1, r2, r3}");
@@ -491,17 +488,19 @@ impl AST {
                 }
 
                 // body codegen
+                b.enter_ctx();
+                b.set_up_env(params);
                 body.emit_arm32(b);
+                b.exit_ctx();
 
                 // function epilogue
                 b.add("  mov sp, fp");
                 b.add("  mov r0, #0");
                 b.add("  pop {fp, pc}");
-                b.exit_ctx();
             }
             AST::Identifier { name, span: _ } => {
                 if let Some(offset) = b.try_get(name) {
-                    b.add(&format!("  ldr r0, #{offset}"));
+                    b.add(&format!("  ldr r0, [fp, #{offset}]"));
                 } else {
                     panic!("undefined variable: `{name}` :(");
                 }
