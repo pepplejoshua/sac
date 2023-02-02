@@ -394,7 +394,7 @@ impl AST {
                 b.add("  push {r0, ip}"); // stores r0 to be later used by r1
                 rhs.emit_arm32(b);
                 b.add("  pop {r1, ip}"); // gets r1 value
-                b.add("  udiv r0, r0, r1");
+                b.add("  udiv r0, r1, r0");
             }
             AST::Equals { lhs, rhs } => {
                 lhs.emit_arm32(b);
