@@ -24,8 +24,16 @@ impl Context {
         }
     }
 
+    fn exit(&self) -> Option<Box<Context>> {
+        self.outer.clone()
+    }
+
     fn set(&mut self, local: String, offset: i32) {
         self.locals.insert(local, offset);
+    }
+
+    fn get(&self, local: &String) -> Option<&i32> {
+        self.locals.get(local)
     }
 }
 
@@ -67,5 +75,22 @@ impl Builder {
         for (i, local) in locals.iter().enumerate() {
             self.context.set(local.clone(), (4 * i - 16) as i32);
         }
+    }
+
+    pub fn enter_ctx(&mut self) {
+        let new_ctx = self.context.enter();
+        self.context = new_ctx;
+    }
+
+    pub fn exit_ctx(&mut self) {
+        if let Some(ctx) = self.context.exit() {
+            self.context = *ctx;
+        } else {
+            panic!("cannot leave orphaned scope :(");
+        }
+    }
+
+    pub fn try_get(&self, local: &String) -> Option<&i32> {
+        self.context.get(local)
     }
 }
