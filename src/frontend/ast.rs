@@ -415,7 +415,30 @@ impl AST {
                 b.add("  movne r0, #1");
             }
             AST::Number { num, span: _ } => b.add(format!("  ldr r0, ={num}").as_str()),
-            _ => b.add("unimplemented"),
+            AST::Call {
+                called,
+                args,
+                span: _,
+            } => match args.len() {
+                0 => b.add(&format!("  bl {called}")),
+                1 => {
+                    args[0].emit_arm32(b);
+                    b.add(&format!("  bl {called}"));
+                }
+                len if len > 1 && len <= 4 => {
+                    b.add(&format!("  sub sp, sp, #{}", len * 4));
+                    for (i, arg) in args.iter().enumerate() {
+                        arg.emit_arm32(b);
+                        b.add(&format!("  str r0, [sp, #{}]", i * 4));
+                    }
+                    b.add("  pop {r0, r1, r2, r3}");
+                    b.add(&format!("  bl {called}"));
+                }
+                _ => {
+                    panic!("More than 4 arguments is not supported :(");
+                }
+            },
+            _ => panic!("unimplemented :("),
         }
     }
 }
