@@ -628,8 +628,7 @@ fn test_comparison() {
 
 #[allow(dead_code)]
 fn statement(input: &str) -> ParseResult<AST> {
-    assert_s
-        .or(return_s)
+    return_s
         .or(fn_s)
         .or(if_s)
         .or(while_s)
@@ -929,18 +928,12 @@ fn fn_s(input: &str) -> ParseResult<AST> {
         .and_then(|fn_name| {
             params.and_then(closure!(clone fn_name, |parameters| {
                 block_s.and_then(closure!(clone fn_name, clone parameters, |blk| {
-                    if fn_name == "main" {
-                        constant(AST::Main {
-                            stmts: Box::new(blk),
-                        })
-                    } else {
                         constant(AST::FunctionDef {
                             span: Span::new_dud(),
                             name: fn_name.clone(),
                             params: parameters.clone(),
                             body: Box::new(blk),
                         })
-                    }
                 }))
             }))
         })
@@ -976,49 +969,6 @@ fn test_fn_s() {
             }
         ))
     );
-
-    assert_eq!(
-        fn_s(":main { }"),
-        Ok((
-            "",
-            AST::Main {
-                stmts: Box::new(AST::Block {
-                    statements: vec![],
-                    span: Span::new_dud()
-                })
-            }
-        ))
-    );
-}
-
-#[allow(dead_code)]
-fn assert_s(input: &str) -> ParseResult<AST> {
-    sliteral("assert")
-        .and_right(sliteral("[(]"))
-        .and_right(expression.and_then(|cond| {
-            sliteral("[)]")
-                .and_right(sliteral("[;]"))
-                .and_right(constant(AST::Assert {
-                    cond: Box::new(cond),
-                }))
-        }))
-        .parse(input)
-}
-
-#[test]
-fn test_assert_s() {
-    assert_eq!(
-        assert_s("assert(a);"),
-        Ok((
-            "",
-            AST::Assert {
-                cond: Box::new(AST::Identifier {
-                    name: "a".into(),
-                    span: Span::new_dud()
-                }),
-            }
-        ))
-    )
 }
 
 pub fn sac_parser(input: &str) -> ParseResult<AST> {
@@ -1040,7 +990,6 @@ fn test_sac_parser() {
         res = res * n;
         n = n - 1;
     }
-    assert(n == 1);
     ret res;
 }"#;
     assert_eq!(
@@ -1106,18 +1055,6 @@ fn test_sac_parser() {
                                         }
                                     ],
                                     span: Span::new_dud()
-                                })
-                            },
-                            AST::Assert {
-                                cond: Box::new(AST::Equals {
-                                    lhs: Box::new(AST::Identifier {
-                                        name: "n".into(),
-                                        span: Span::new_dud()
-                                    }),
-                                    rhs: Box::new(AST::Number {
-                                        span: Span::new_dud(),
-                                        num: 1
-                                    })
                                 })
                             },
                             AST::Return {

@@ -108,12 +108,6 @@ pub enum AST {
         span: Span,
         msg: String,
     },
-    Assert {
-        cond: Box<AST>,
-    },
-    Main {
-        stmts: Box<AST>,
-    },
 }
 
 #[allow(dead_code)]
@@ -297,8 +291,6 @@ impl AST {
                     body: obody,
                 },
             ) => condition.equals(ocondition) && body.equals(obody),
-            (AST::Main { stmts }, AST::Main { stmts: ostmts }) => stmts.equals(ostmts),
-            (AST::Assert { cond }, AST::Assert { cond: ocond }) => cond.equals(ocond),
             _ => false,
         }
     }
@@ -355,36 +347,17 @@ impl AST {
                 body: _,
             } => span.clone(),
             AST::Error { span, msg: _ } => span.clone(),
-            AST::Assert { cond: _ } => Span::new_dud(),
-            AST::Main { stmts: _ } => Span::new_dud(),
         }
     }
 
     pub fn emit_arm32(&self, b: &mut Builder) {
         match self {
-            AST::Main { stmts } => {
-                b.add(".global main");
-                b.add("main:");
-                b.add("  push {fp, lr}");
-                stmts.emit_arm32(b);
-                b.add("  mov r0, #0");
-                b.add("  pop {fp, pc}");
-            }
             AST::Block {
                 statements,
                 span: _,
             } => statements.iter().for_each(|stmt| {
                 stmt.emit_arm32(b);
             }),
-            AST::Assert { cond } => {
-                cond.emit_arm32(b);
-                b.add("  cmp r0, #1");
-                b.add("  moveq r0, #'.'");
-                b.add("  movne r0, #'F'");
-                b.add("  bl putchar");
-                b.add("  mov r0, #'\\n'");
-                b.add("  bl putchar");
-            }
             AST::Not { target, span: _ } => {
                 target.emit_arm32(b);
                 b.add("  cmp r0, #0");
@@ -478,6 +451,60 @@ impl AST {
                 b.add(&format!("{}:", if_false_label.s()));
                 c_else.emit_arm32(b);
                 b.add(&format!("{}:", end_if_label.s()));
+            }
+            AST::FunctionDef {
+                span: _,
+                name,
+                params,
+                body,
+            } => {
+                if params.len() > 4 {
+                    panic!("sac doesn't support more than 4 parameters :(");
+                }
+                b.add("");
+                b.add(&format!(".global {name}"));
+                b.add(&format!("{name}:"));
+
+                // function prologue
+                b.add("  push {fp, lr}");
+                b.add("  mov fp, sp");
+
+                b.enter_ctx();
+                b.set_up_env(params);
+
+                // push the right number of registers onto the stack
+                // that will serve as parameters in the function body
+                match params.len() {
+                    1 => {
+                        b.add("  push {r0, fp}"); // use fp to pad to 8 bytes
+                    }
+                    2 => {
+                        b.add("  push {r0, r1}");
+                    }
+                    3 => {
+                        b.add("  push {r0, r1, r2, fp}"); // use fp to pad to 8 bytes
+                    }
+                    4 => {
+                        b.add("  push {r0, r1, r2, r3}");
+                    }
+                    _ => {}
+                }
+
+                // body codegen
+                body.emit_arm32(b);
+
+                // function epilogue
+                b.add("  mov sp, fp");
+                b.add("  mov r0, #0");
+                b.add("  pop {fp, pc}");
+                b.exit_ctx();
+            }
+            AST::Identifier { name, span: _ } => {
+                if let Some(offset) = b.try_get(name) {
+                    b.add(&format!("  ldr r0, #{offset}"));
+                } else {
+                    panic!("undefined variable: `{name}` :(");
+                }
             }
             _ => panic!("unimplemented :("),
         }
