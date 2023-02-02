@@ -10,11 +10,13 @@ struct Label {
 static mut LABEL_COUNTER: i32 = 0;
 #[allow(dead_code)]
 impl Label {
-    unsafe fn n() -> Self {
+    fn n() -> Self {
         let label = Label {
-            value: LABEL_COUNTER,
+            value: unsafe { LABEL_COUNTER },
         };
-        LABEL_COUNTER += 1;
+        unsafe {
+            LABEL_COUNTER += 1;
+        }
         label
     }
 
@@ -466,8 +468,8 @@ impl AST {
                 then,
                 c_else,
             } => {
-                let if_false_label = unsafe { Label::n() };
-                let end_if_label = unsafe { Label::n() };
+                let if_false_label = Label::n();
+                let end_if_label = Label::n();
                 condition.emit_arm32(b);
                 b.add("  cmp r0, #0");
                 b.add(&format!("  beq {}", if_false_label.s()));
