@@ -369,10 +369,50 @@ impl AST {
             }
             AST::Add { lhs, rhs } => {
                 lhs.emit_arm32(b);
-                b.add("  push {r0, ip}");
+                b.add("  push {r0, ip}"); // stores r0 to be later used by r1
                 rhs.emit_arm32(b);
-                b.add("  pop {r1, ip}");
+                b.add("  pop {r1, ip}"); // gets r1 value
                 b.add("  add r0, r0, r1");
+            }
+            AST::Subtract { lhs, rhs } => {
+                lhs.emit_arm32(b);
+                b.add("  push {r0, ip}"); // stores r0 to be later used by r1
+                rhs.emit_arm32(b);
+                b.add("  pop {r1, ip}"); // gets r1 value
+                b.add("  sub r0, r0, r1");
+            }
+            AST::Multiply { lhs, rhs } => {
+                lhs.emit_arm32(b);
+                b.add("  push {r0, ip}"); // stores r0 to be later used by r1
+                rhs.emit_arm32(b);
+                b.add("  pop {r1, ip}"); // gets r1 value
+                b.add("  mul r2, r0, r1");
+                b.add("  mov r0, r2");
+            }
+            AST::Divide { lhs, rhs } => {
+                lhs.emit_arm32(b);
+                b.add("  push {r0, ip}"); // stores r0 to be later used by r1
+                rhs.emit_arm32(b);
+                b.add("  pop {r1, ip}"); // gets r1 value
+                b.add("  udiv r0, r0, r1");
+            }
+            AST::Equals { lhs, rhs } => {
+                lhs.emit_arm32(b);
+                b.add("  push {r0, ip}"); // stores r0 to be later used by r1
+                rhs.emit_arm32(b);
+                b.add("  pop {r1, ip}"); // gets r1 value
+                b.add("  cmp r0, r1");
+                b.add("  moveq r0, #1");
+                b.add("  movne r0, #0");
+            }
+            AST::NEquals { lhs, rhs } => {
+                lhs.emit_arm32(b);
+                b.add("  push {r0, ip}"); // stores r0 to be later used by r1
+                rhs.emit_arm32(b);
+                b.add("  pop {r1, ip}"); // gets r1 value
+                b.add("  cmp r0, r1");
+                b.add("  moveq r0, #0");
+                b.add("  movne r0, #1");
             }
             AST::Number { num, span: _ } => b.add(format!("  ldr r0, ={num}").as_str()),
             _ => b.add("unimplemented"),
