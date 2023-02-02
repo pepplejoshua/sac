@@ -95,7 +95,7 @@ impl Builder {
     pub fn write_out(&mut self) {
         if !self.interned_strings.is_empty() {
             self.add_at("", 0);
-            for (istr, label) in self.interned_strings.clone().iter() {
+            for (istr, label) in self.interned_strings.clone().iter().rev() {
                 // generates:
                 // label:
                 //   .string "string contents"
