@@ -519,6 +519,22 @@ impl AST {
                     panic!("undefined variable: `{name}` :(");
                 }
             }
+            AST::WhileLoop {
+                span: _,
+                condition,
+                body,
+            } => {
+                let loop_start = Label::n();
+                let loop_end = Label::n();
+
+                b.add(&format!("{}:", loop_start.s()));
+                condition.emit_arm32(b);
+                b.add("  cmp r0, #0");
+                b.add(&format!("  beq {}", loop_end.s()));
+                body.emit_arm32(b);
+                b.add(&format!("  b {}", loop_start.s()));
+                b.add(&format!("{}:", loop_end.s()));
+            }
             _ => panic!("unimplemented :("),
         }
     }
