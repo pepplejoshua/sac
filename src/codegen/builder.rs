@@ -35,6 +35,7 @@ impl Label {
 
 pub struct Context {
     locals: HashMap<String, i32>,
+    next_local_offset: i32,
     outer: Option<Box<Context>>,
 }
 
@@ -44,6 +45,7 @@ impl Context {
         Context {
             locals: HashMap::new(),
             outer: None,
+            next_local_offset: 0,
         }
     }
 
@@ -51,6 +53,7 @@ impl Context {
         Context {
             locals: HashMap::new(),
             outer: Some(Box::new(self.clone())),
+            next_local_offset: 0,
         }
     }
 
@@ -129,10 +132,24 @@ impl Builder {
     }
 
     pub fn set_up_env(&mut self, locals: &[String]) {
+        let max_span = locals.len() * 4;
         for (i, local) in locals.iter().enumerate() {
-            self.context
-                .set(local.clone(), (4 * i - (locals.len() * 4)) as i32);
+            self.context.set(local.clone(), (4 * i - max_span) as i32);
+            // for 1 local,
+            //  - max_span = 4
+            //  - arg 0, offset = 4 * 0 - 4 = -4
+            // for 3 locals,
+            //  - max_span = 12
+            //  - arg 0, offset = 4 * 0 - 12 = -12
+            //  - arg 1, offset = 4 * 1 - 12 = -8
+            //  - arg 2, offset = 4 * 2 - 12 = -4
         }
+        // go one past the last argument
+        // with 1 local,
+        // next_local_offset = (1 * -4) - 4 = -8 (since the only local will be in -4)
+        // with 3 locals,
+        // next_local_offset = (3 * -4) - 4 = -12 - 4 = -16 (since the first local will be at -12)
+        self.context.next_local_offset = (locals.len() as i32 * -4) - 4;
     }
 
     pub fn enter_ctx(&mut self) {
@@ -146,6 +163,11 @@ impl Builder {
         } else {
             panic!("cannot leave orphaned scope :(");
         }
+    }
+
+    pub fn set(&mut self, local: String) {
+        self.context.set(local, self.context.next_local_offset);
+        self.context.next_local_offset -= 4;
     }
 
     pub fn try_get(&self, local: &String) -> Option<&i32> {

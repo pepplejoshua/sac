@@ -498,6 +498,15 @@ impl AST {
                 let label = b.add_interned_str(literal.clone());
                 b.add(&format!("  ldr r0, ={}", label.s()));
             }
+            AST::Variable {
+                span: _,
+                name,
+                value,
+            } => {
+                value.emit_arm32(b);
+                b.add("  push {r0}");
+                b.set(name.clone());
+            }
             _ => panic!("unimplemented :("),
         }
     }
