@@ -8,7 +8,7 @@ then
   cargo build --release --quiet
   ./target/release/sac
   arm-linux-gnueabihf-gcc -static -mcpu=cortex-a7 "$1.s" -o "$1"
-  qemu-arm "$1"
+  time -p qemu-arm "$1"
   echo
   rm $1
 else 
