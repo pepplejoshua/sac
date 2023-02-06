@@ -507,6 +507,18 @@ impl AST {
                 b.add("  push {r0}");
                 b.set(name.clone());
             }
+            AST::Assignment {
+                span: _,
+                name,
+                value,
+            } => {
+                if let Some(&offset) = b.try_get(name) {
+                    value.emit_arm32(b);
+                    b.add(&format!("  str r0, [fp, #{offset}]"));
+                } else {
+                    panic!("undefined variable: `{name}` :(");
+                }
+            }
             _ => panic!("unimplemented :("),
         }
     }
