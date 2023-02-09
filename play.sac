@@ -1,0 +1,26 @@
+:main {
+  printf("fact_l(5) = %d\n", fact_l(5));
+  printf("fact_r(5) = %d\n\n", fact_r(5));
+}
+
+:fact_l n {
+  mut res = 1;
+  while n != 1 {
+    res = res * n;
+    n = n - 1;
+  }
+  ret res;
+} 
+
+:fact_r n {
+  if n == 0 {
+    ret 1;
+  } else {
+      ret n * fact_r(n - 1);
+  }
+}
+
+:assert cond, msg {
+  if cond { printf("passed: %s\n", msg); } 
+  else { printf("failed: %s\n", msg); }
+}
