@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# this file will install all packages required to
+# cross compile sac to arm on an x86_64 machine
+
+# install rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# install gcc-arm-linux-gnueabihf
+sudo apt install gcc-arm-linux-gnueabihf
+
+# install qemu
+sudo apt install qemu-user
+
+# clean up
+sudo apt autoremove
+
+# make this file executable
+chmod +x prep
